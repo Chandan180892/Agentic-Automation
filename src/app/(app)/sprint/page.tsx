@@ -5,7 +5,7 @@ import { requireWorkspace } from "@/lib/workspace";
 import { redirect } from "next/navigation";
 import { parseJson, fmtDate } from "@/lib/utils";
 import { PageBar, Pane } from "@/components/page-bar";
-import { Card, CardHeader, CardBody, Pill, Label, Sub, Meter, Stat, StatRow, Button, Empty } from "@/components/ui";
+import { Card, CardHeader, CardBody, Pill, Label, Sub, Meter, Stat, StatRow, Button, Empty, buttonClass } from "@/components/ui";
 import { agentsAreLive } from "@/lib/agents/runtime";
 import { createSprint, planSprint, batchGenerate, toggleStory, deleteStory, generateForStory, addStory } from "../actions";
 import { AddStoryPanel } from "./add-story";
@@ -20,14 +20,16 @@ type Plan = z.infer<typeof S.SprintPlannerOut> & { mode?: string; runId?: string
 export default async function SprintPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string }>;
+  searchParams: Promise<{ id?: string; new?: string }>;
 }) {
   const ctx = await requireWorkspace();
   if (!ctx) redirect("/login");
   const { workspace } = ctx;
-  const { id } = await searchParams;
+  const { id, new: wantsNew } = await searchParams;
 
-  const sprint = id
+  const sprint = wantsNew
+    ? null
+    : id
     ? await db.sprint.findFirst({
         where: { id, workspaceId: workspace.id },
         include: { stories: { orderBy: [{ priority: "asc" }, { createdAt: "asc" }] } },
@@ -38,7 +40,14 @@ export default async function SprintPage({
         include: { stories: { orderBy: [{ priority: "asc" }, { createdAt: "asc" }] } },
       });
 
-  const live = await db.run.count({ where: { workspaceId: workspace.id, status: "running" } });
+  const [live, allSprints] = await Promise.all([
+    db.run.count({ where: { workspaceId: workspace.id, status: "running" } }),
+    db.sprint.findMany({
+      where: { workspaceId: workspace.id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   if (!sprint) return <NewSprint live={live} />;
 
@@ -52,6 +61,27 @@ export default async function SprintPage({
   return (
     <>
       <PageBar crumb={`${workspace.slug} / ${sprint.name}`} title="Sprint planner" live={live}>
+        {allSprints.length > 1 && (
+          <nav className="flex flex-wrap items-center gap-1.5">
+            {allSprints.map((s) => (
+              <Link
+                key={s.id}
+                href={`/sprint?id=${s.id}`}
+                aria-current={s.id === sprint.id ? "page" : undefined}
+                className={`rounded-full border px-2.5 py-[3px] text-[11.5px] font-semibold transition-colors ${
+                  s.id === sprint.id
+                    ? "border-ink bg-ink text-ground"
+                    : "border-line bg-surface text-ink-2 hover:border-accent-line hover:text-ink"
+                }`}
+              >
+                {s.name}
+              </Link>
+            ))}
+          </nav>
+        )}
+        <Link href="/sprint?new=1" className={buttonClass("default", "md")}>
+          New sprint
+        </Link>
         <form action={planSprint.bind(null, sprint.id)}>
           <Button type="submit">Run sprint-planner</Button>
         </form>

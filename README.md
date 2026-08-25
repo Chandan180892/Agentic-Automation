@@ -42,6 +42,16 @@ With no `ANTHROPIC_API_KEY` set, each agent falls back to a deterministic built-
 every result is labelled `simulated` all the way to the UI. Storage, jobs, runners, and review are
 still real, so a fresh clone is fully explorable before anyone configures a key.
 
+### Demo sign-in
+
+OAuth is the real way in, but a brand-new deployment has no OAuth client yet — which would leave
+the app behind a door nobody can open. Set `ALLOW_DEMO_LOGIN=true` and the login page offers a
+shared demo workspace instead.
+
+It is off unless you switch it on, and the page says plainly what it is: **everyone who signs in
+this way lands in the same workspace and can see each other's work.** Turn it off once real
+sign-in is configured.
+
 ---
 
 ## Run it locally
@@ -122,11 +132,27 @@ Useful flags: `--slots` (concurrency), `--poll-ms`, `--workdir`, `--once`, `--he
 
 ---
 
-## Deploy
+## Deploy the app
 
-The app is FE + BE in one Next.js deployable. Three routes, all driven from this repo:
+The app is FE + BE in one Next.js deployable.
 
-### Container (recommended — runs anywhere)
+### Render — one click, database included (fastest)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Chandan180892/Agentic-Automation)
+
+`render.yaml` provisions the web service **and** a Postgres database together, generates
+`AUTH_SECRET`, and switches Prisma to the Postgres provider during the build. Or do it by hand:
+Render → **New → Blueprint** → point at this repo → Apply.
+
+It boots with `ALLOW_DEMO_LOGIN=true`, so you can sign in and use the whole app before creating a
+single OAuth client. Two things to do once it is up:
+
+1. Set `AUTH_URL` to the URL Render gave you, so OAuth callbacks and secure cookies resolve.
+2. Add `ANTHROPIC_API_KEY` to take the agents off the simulator.
+
+Then add Google or GitHub credentials and set `ALLOW_DEMO_LOGIN=false`.
+
+### Container (runs anywhere)
 
 `.github/workflows/docker.yml` builds and pushes `ghcr.io/<owner>/<repo>` on every push to `main`.
 Point Fly.io, Render, Railway, Cloud Run, or a plain VM at that image. Or build it yourself:
@@ -179,12 +205,15 @@ fail with a redirect mismatch.
 ```bash
 npm run test:agents    # every agent's contract, through the real runtime
 npm run test:smoke     # runner protocol against a running server
+npm run test:auth      # session handling across every authenticated page
 npx tsc --noEmit       # typecheck
 ```
 
-`test:smoke` needs the app running (`npm start` on port 3210, or set `BASE`). It covers token
-rejection, single-claim-under-race, log streaming, completion, run auto-close, and cross-workspace
-isolation. CI runs all of it on every push.
+`test:smoke` and `test:auth` need the app running (`npm start` on port 3210, or set `BASE`).
+Between them they cover runner token rejection, single-claim-under-race, log streaming, run
+auto-close, cross-workspace isolation, and — on the auth side — that every authenticated page
+requires a session and that expired and forged session tokens are refused. CI runs all of it on
+every push.
 
 ---
 

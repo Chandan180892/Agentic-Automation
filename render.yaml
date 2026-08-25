@@ -1,0 +1,52 @@
+# One-click deploy of the whole app — web service plus its Postgres database.
+# Render → New → Blueprint → point at this repository.
+#
+# AUTH_SECRET is generated for you. The keys marked `sync: false` are the ones you
+# fill in yourself in the Render dashboard; the app runs without them and tells you
+# in the UI which are still missing.
+services:
+  - type: web
+    name: gantry
+    runtime: node
+    plan: free
+    # db:postgres switches the Prisma provider before the client is generated.
+    buildCommand: npm ci && npm run db:postgres && npm run build
+    startCommand: npx prisma db push --skip-generate --accept-data-loss && npm start
+    healthCheckPath: /login
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gantry-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      - key: NODE_VERSION
+        value: "22"
+      # Lets you in before any OAuth client exists. Turn this off once Google or
+      # GitHub sign-in is configured — it is a SHARED account, not a private one.
+      - key: ALLOW_DEMO_LOGIN
+        value: "true"
+      # Set these in the dashboard when you have them.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false
+      - key: AUTH_GITHUB_ID
+        sync: false
+      - key: AUTH_GITHUB_SECRET
+        sync: false
+      # After the first deploy, set this to the URL Render gives you, so OAuth
+      # callbacks and secure cookies resolve against the right origin.
+      - key: AUTH_URL
+        sync: false
+
+databases:
+  - name: gantry-db
+    plan: free
+    databaseName: gantry

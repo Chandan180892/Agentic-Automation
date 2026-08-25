@@ -574,3 +574,86 @@ export async function deleteRunner(runnerId: string) {
   await db.runner.delete({ where: { id: runnerId } });
   revalidatePath("/runners");
 }
+
+// ------------------------------------------------------- applying a patch --
+
+/**
+ * Accept a patch qe-auto-heal or batch-heal proposed. The patch is recorded as accepted and
+ * a fresh execute job is queued, so a runner re-runs the spec and the result is real rather
+ * than asserted. Gantry does not write to your repository — the runner owns the working tree.
+ */
+export async function applyPatch(assetId: string): Promise<void> {
+  const { workspace } = await ctx();
+  const patch = await db.asset.findFirst({
+    where: { id: assetId, kind: "patch", job: { run: { workspaceId: workspace.id } } },
+    include: { job: { include: { run: true } } },
+  });
+  if (!patch) throw new Error("Patch not found in this workspace.");
+
+  const run = await db.run.create({
+    data: {
+      workspaceId: workspace.id,
+      sprintId: patch.job.run.sprintId,
+      agent: "qe-auto-heal",
+      mode: "single",
+      status: "running",
+      inputJson: JSON.stringify({ appliedPatch: patch.path }),
+    },
+  });
+
+  const job = await db.job.create({
+    data: {
+      runId: run.id,
+      storyId: patch.job.storyId,
+      kind: "execute",
+      status: "queued",
+      payloadJson: JSON.stringify({
+        reason: "re-run after applying a proposed patch",
+        assets: [{ path: patch.path, kind: "patch", content: patch.content }],
+      }),
+    },
+  });
+
+  await logEvent(run.id, `applying patch to ${patch.path}`, "info", "qe-auto-heal", job.id);
+  await logEvent(
+    run.id,
+    "queued a re-run — a runner will verify the patch against the real suite",
+    "info",
+    "qe-auto-heal",
+    job.id
+  );
+
+  revalidatePath("/results");
+  redirect(`/runs/${run.id}`);
+}
+
+// -------------------------------------------------------------- qe-insights
+
+export async function runInsights(): Promise<void> {
+  const { workspace } = await ctx();
+  const jobs = await db.job.findMany({
+    where: { run: { workspaceId: workspace.id }, status: { in: ["passed", "failed"] } },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    include: { assets: true, story: { select: { key: true } } },
+  });
+  if (jobs.length === 0) throw new Error("No finished jobs yet — run something first.");
+
+  const { runId } = await runAgentTracked({
+    workspaceId: workspace.id,
+    agent: "qe-insights",
+    input: {
+      window: `last ${jobs.length} jobs`,
+      runs: jobs.map((j) => ({
+        specPath: j.assets.find((a) => a.kind === "spec")?.path ?? `job-${j.id}`,
+        status: j.status,
+        durationMs:
+          j.finishedAt && j.claimedAt ? j.finishedAt.getTime() - j.claimedAt.getTime() : 0,
+        storyKey: j.story?.key ?? "",
+      })),
+    },
+  });
+
+  revalidatePath("/results");
+  redirect(`/runs/${runId}`);
+}

@@ -6,7 +6,7 @@ import { requireWorkspace } from "@/lib/workspace";
 import { parseJson, relTime } from "@/lib/utils";
 import { PageBar, Pane } from "@/components/page-bar";
 import { Card, CardHeader, CardBody, Pill, Sub, Stat, StatRow, Button, Empty, Meter } from "@/components/ui";
-import { healJob, batchHeal } from "../actions";
+import { healJob, batchHeal, applyPatch, runInsights } from "../actions";
 
 export const metadata: Metadata = { title: "Results & heal" };
 export const dynamic = "force-dynamic";
@@ -62,6 +62,11 @@ export default async function ResultsPage() {
   return (
     <>
       <PageBar crumb={`${workspace.slug} / results`} title="Results & heal" live={live}>
+        {executed.length > 0 && (
+          <form action={runInsights}>
+            <Button type="submit">Run qe-insights</Button>
+          </form>
+        )}
         {failed.length > 0 && (
           <form action={batchHeal}>
             <Button type="submit" variant="primary">
@@ -104,12 +109,19 @@ export default async function ResultsPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-[12px] font-semibold">{a.path}</span>
                       <Pill tone="heal">{a.job.run.agent}</Pill>
-                      <Link
-                        href={`/runs/${a.job.runId}`}
-                        className="ml-auto text-[12px] font-semibold text-accent hover:underline"
-                      >
-                        Open run →
-                      </Link>
+                      <div className="ml-auto flex items-center gap-2">
+                        <Link
+                          href={`/runs/${a.job.runId}`}
+                          className="text-[12px] font-semibold text-accent hover:underline"
+                        >
+                          Open run →
+                        </Link>
+                        <form action={applyPatch.bind(null, a.id)}>
+                          <Button type="submit" size="sm" variant="primary">
+                            Apply &amp; re-run
+                          </Button>
+                        </form>
+                      </div>
                     </div>
                     <Diff text={a.content} />
                   </div>

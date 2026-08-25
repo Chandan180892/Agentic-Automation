@@ -33,7 +33,7 @@ jobs:
       - name: Agent contract checks
         run: npx tsx scripts/agents-check.ts
 
-      - name: Runner protocol smoke test
+      - name: Runner protocol and auth smoke tests
         run: |
           npx next start -p 3210 &
           for i in $(seq 1 60); do
@@ -41,6 +41,7 @@ jobs:
             sleep 1
           done
           BASE=http://127.0.0.1:3210 node scripts/smoke.mjs
+          BASE=http://127.0.0.1:3210 node scripts/demo-login-check.mjs
 
       - name: Runner CLI syntax
         run: node --check packages/runner/bin/gantry-runner.mjs

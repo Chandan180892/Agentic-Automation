@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { auth, enabledProviders } from "@/auth";
+import { demoLoginEnabled } from "@/lib/demo";
+import { demoSignInAction } from "./actions";
+import { Button } from "@/components/ui";
 import { SignInButtons } from "./sign-in-buttons";
 import { Pill } from "@/components/ui";
 
@@ -39,6 +42,7 @@ export default async function LoginPage({
   if (session?.user) redirect("/sprint");
   const { error, callbackUrl } = await searchParams;
   const anyProvider = enabledProviders.google || enabledProviders.github;
+  const demo = demoLoginEnabled();
 
   return (
     <main className="mx-auto grid min-h-dvh max-w-[1320px] lg:grid-cols-[1.05fr_0.95fr]">
@@ -109,13 +113,34 @@ export default async function LoginPage({
         {anyProvider ? (
           <SignInButtons providers={enabledProviders} callbackUrl={callbackUrl ?? "/sprint"} />
         ) : (
-          <div className="rounded-lg border border-heal/30 bg-heal-soft px-4 py-3.5">
-            <p className="text-[13px] font-semibold text-heal">No sign-in provider is configured yet</p>
-            <p className="mt-1.5 text-[12.5px] leading-[1.6] text-heal/90">
-              Set <code className="font-mono">AUTH_GOOGLE_ID</code> and{" "}
-              <code className="font-mono">AUTH_GOOGLE_SECRET</code>, or the GitHub pair, then restart.
-              The buttons appear on their own — see <code className="font-mono">.env.example</code>.
-            </p>
+          !demo && (
+            <div className="rounded-lg border border-heal/30 bg-heal-soft px-4 py-3.5">
+              <p className="text-[13px] font-semibold text-heal">No sign-in provider is configured yet</p>
+              <p className="mt-1.5 text-[12.5px] leading-[1.6] text-heal/90">
+                Set <code className="font-mono">AUTH_GOOGLE_ID</code> and{" "}
+                <code className="font-mono">AUTH_GOOGLE_SECRET</code>, or the GitHub pair, then restart.
+                The buttons appear on their own — see <code className="font-mono">.env.example</code>.
+              </p>
+            </div>
+          )
+        )}
+
+        {demo && (
+          <div className="rounded-[10px] border border-accent-line bg-accent-soft p-3.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Pill tone="accent">Demo</Pill>
+              <p className="flex-1 text-[11.5px] leading-[1.6] text-accent">
+                {anyProvider
+                  ? "This deployment also allows a shared demo account."
+                  : "No OAuth provider is configured, so this deployment opens with a shared demo account."}{" "}
+                Everyone who clicks below lands in the same workspace and can see each other's work.
+              </p>
+            </div>
+            <form action={demoSignInAction} className="mt-3">
+              <Button type="submit" variant="primary" className="w-full justify-center py-2.5">
+                Continue to the demo workspace
+              </Button>
+            </form>
           </div>
         )}
 
