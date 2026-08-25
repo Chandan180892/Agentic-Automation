@@ -6,7 +6,7 @@ Gantry reads your sprint, writes the specs and test assets, runs them on machine
 cloud or the laptop under your desk — and proposes a patch when a spec breaks. Six agents drive
 it end to end; you sign in, plan, and review.
 
-- **Design prototype:** `docs/prototype.html` (also published to GitHub Pages)
+- **Design prototype:** `docs/index.html` — published at https://chandan180892.github.io/Agentic-Automation/
 - **Stack:** Next.js 16 (App Router, FE + BE in one deployable), Auth.js v5, Prisma, Anthropic SDK
 - **Runner:** `packages/runner` — an outbound Node CLI, no inbound ports
 
@@ -159,7 +159,13 @@ npm run db:push
 
 ### GitHub Pages
 
-`.github/workflows/deploy-pages.yml` publishes the design prototype (`docs/prototype.html`).
+The prototype lives at `docs/index.html` and is published two ways, so either works:
+
+- **Deploy from a branch** — Settings → Pages → Source: *Deploy from a branch*, branch:
+  `claude/ai-agent-sprint-app-8a2yxn`, folder: `/docs`. No Actions runner involved.
+- **GitHub Actions** — Settings → Pages → Source: *GitHub Actions*. Then
+  `.github/workflows/deploy-pages.yml` republishes on every change to `docs/`.
+
 Pages serves static files only, so it hosts the prototype, not the app.
 
 **After deploying, update each OAuth app's callback URL** to
@@ -208,6 +214,6 @@ src/app/api/runner/     the outbound runner protocol: heartbeat, claim, generate
 src/lib/agents/         registry (prompts + simulators), schemas, runtime
 packages/runner/        the runner CLI
 prisma/schema.prisma    workspaces, sprints, stories, runs, jobs, assets, events, runners
-docs/prototype.html     the design prototype this app was built from
+docs/index.html         the design prototype this app was built from (served by Pages)
 scripts/                agent contract checks and the runner protocol smoke test
 ```
