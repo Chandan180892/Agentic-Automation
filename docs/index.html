@@ -344,6 +344,58 @@ a{color:var(--accent);text-decoration:none}
   .si-right{padding:36px 26px}
   .stat{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ---------- pipeline stages ---------- */
+.stage{
+  flex:none;width:170px;border:1px solid var(--line);border-radius:9px;background:var(--surface);
+  padding:11px 12px;display:flex;flex-direction:column;gap:6px;
+}
+.stage[data-s="run"]{border-color:color-mix(in srgb,var(--live) 45%,transparent);box-shadow:0 0 0 3px var(--live-soft)}
+.stage[data-s="passed"]{border-color:color-mix(in srgb,var(--pass) 35%,transparent)}
+.stage[data-s="blocked"]{border-color:color-mix(in srgb,var(--heal) 42%,transparent)}
+.stage[data-s="pending"]{opacity:.5}
+.stage .n{font-family:var(--f-mono);font-size:11px;font-weight:600}
+.stage .r{font-size:10.5px;color:var(--muted);line-height:1.35}
+.stage .num{
+  position:absolute;margin-top:-22px;margin-left:-4px;width:17px;height:17px;border-radius:50%;
+  background:var(--surface-3);border:1px solid var(--line);display:grid;place-items:center;
+  font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--muted);
+}
+.sublist{display:grid;gap:11px;border-top:1px solid var(--line-soft);padding-top:13px;margin-top:13px}
+.sublist li{display:flex;gap:11px;list-style:none}
+.sublist .o{
+  flex:none;width:19px;height:19px;border-radius:50%;background:var(--accent-soft);
+  border:1px solid var(--accent-line);color:var(--accent);display:grid;place-items:center;
+  font-family:var(--f-mono);font-size:10px;font-weight:700;margin-top:1px;
+}
+.sublist h5{font-family:var(--f-mono);font-size:12px;font-weight:600;display:inline}
+.sublist .role{font-size:11px;color:var(--muted);margin-left:7px}
+.sublist p{font-size:12.5px;color:var(--ink-2);line-height:1.5;margin-top:2px}
+
+/* ---------- proposals ---------- */
+.prop{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  border:1px solid var(--line-soft);border-radius:9px;background:var(--surface-2);padding:12px 14px;
+}
+.prop .t{font-size:13px;font-weight:600}
+.prop .d{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-top:2px}
+.prop .sp{margin-left:auto}
+.sysbadge{
+  display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:5px;
+  font-family:var(--f-mono);font-size:10.5px;font-weight:600;border:1px solid var(--line);background:var(--surface);
+}
+.tc{border:1px solid var(--line-soft);border-radius:8px;background:var(--surface-2);overflow:hidden}
+.tc summary{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;cursor:pointer;list-style:none}
+.tc summary::-webkit-details-marker{display:none}
+.tc .s{display:block;font-size:12.5px;font-weight:600;line-height:1.4}
+.tc .c{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+.tc ol{border-top:1px solid var(--line-soft);padding:10px 14px 11px 30px;margin:0;display:grid;gap:8px}
+.tc li{font-size:11.5px;line-height:1.5}
+.tc li b{font-weight:600}
+.tc li .exp{color:var(--muted);display:block}
+.tc li .dat{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);display:block}
+.jira{font-family:var(--f-mono);font-size:11px;color:var(--accent);text-decoration:none}
+.jira:hover{text-decoration:underline}
 </style>
 
 <div class="note">
@@ -359,8 +411,8 @@ a{color:var(--accent);text-decoration:none}
   <button class="chip" data-go="plan">Sprint planner</button>
   <button class="chip" data-go="agents">Agents</button>
   <button class="chip" data-go="run">Pipeline run</button>
-  <button class="chip" data-go="runners">Runners</button>
-  <button class="chip" data-go="heal">Results &amp; heal</button>
+  <button class="chip" data-go="results">Results</button>
+  <button class="chip" data-go="settings">Settings</button>
 </div>
 
 <!-- ================= SIGN IN ================= -->
@@ -372,28 +424,28 @@ a{color:var(--accent);text-decoration:none}
           <div class="mark">G</div>
           <div><b>Gantry</b><span>Agentic QE</span></div>
         </div>
-        <h1>Sprint in.<br><em>Green out.</em></h1>
-        <p class="si-lede">Gantry reads your sprint, writes the specs and test assets, and runs them on your own machines — cloud or the laptop under your desk. When a spec breaks, it fixes itself and shows you the diff.</p>
+        <h1>Jira in.<br><em>Xray out.</em></h1>
+        <p class="si-lede">Gantry reads your Jira stories, walks each one through six sub-agents, and proposes Xray test cases and a Bitbucket branch. Nothing is written to your systems until you approve it.</p>
         <div class="chain">
-          <span class="lbl" style="margin-bottom:6px">How a story becomes green</span>
+          <span class="lbl" style="margin-bottom:6px">How a story becomes a suite</span>
           <div class="chain-row">
             <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></div>
-            <div><div class="t">Plan the sprint</div><div class="d">sprint-planner sizes and sequences the backlog</div></div>
+            <div><div class="t">Pull the story from Jira</div><div class="d">acceptance criteria, points, labels — criteria parsed even when there is no field for them</div></div>
           </div>
           <div class="chain-line"></div>
           <div class="chain-row">
-            <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg></div>
-            <div><div class="t">Generate specs &amp; assets</div><div class="d">qe-pipelines and qe-batch turn stories into runnable suites</div></div>
-          </div>
-          <div class="chain-line"></div>
-          <div class="chain-row">
-            <div class="chain-ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
-            <div><div class="t">Run on your servers</div><div class="d">outbound runners — no inbound ports, no SSH keys</div></div>
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+            <div><div class="t">Six sub-agents, in order</div><div class="d">analyze, clarify, resolve assets, author, verify, review</div></div>
           </div>
           <div class="chain-line"></div>
           <div class="chain-row">
             <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></div>
-            <div><div class="t">Heal what breaks</div><div class="d">qe-auto-heal proposes the patch; batch-heal fixes the fleet</div></div>
+            <div><div class="t">It revises its own work</div><div class="d">when the verifier objects, the author fixes it and the verifier re-checks</div></div>
+          </div>
+          <div class="chain-line"></div>
+          <div class="chain-row">
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+            <div><div class="t">You approve, then it publishes</div><div class="d">Xray test cases and a Bitbucket PR — never before you say so</div></div>
           </div>
         </div>
       </div>
@@ -418,7 +470,7 @@ a{color:var(--accent);text-decoration:none}
         <div class="card flat" style="padding:14px">
           <div style="display:flex;gap:10px;align-items:flex-start">
             <span class="pill p-acc"><span class="dot"></span>Workspace</span>
-            <p class="fine" style="margin:0">Your first sign-in creates a workspace. Invite your team, connect a runner, and point Gantry at a repo — the agents pick up from there.</p>
+            <p class="fine" style="margin:0">Your first sign-in creates a workspace. Point it at a Jira project, an Xray project and a Bitbucket repo — the agents pick up from there.</p>
           </div>
         </div>
         <p class="fine">Sessions are httpOnly cookies signed by Auth.js. Gantry never stores a password, and never asks for one.</p>
@@ -436,11 +488,10 @@ a{color:var(--accent);text-decoration:none}
     </div>
     <span class="rail-label">Workspace</span>
     <button class="navbtn" data-go="plan"><svg class="ic" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg>Sprint planner<span class="tick">S-24</span></button>
-    <button class="navbtn" data-go="agents"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg>Agents<span class="tick">6</span></button>
-    <button class="navbtn" data-go="run"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg>Pipelines<span class="tick">3</span></button>
-    <span class="rail-label">Execution</span>
-    <button class="navbtn" data-go="runners"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Runners<span class="tick">4</span></button>
-    <button class="navbtn" data-go="heal"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>Results &amp; heal<span class="tick">7</span></button>
+    <button class="navbtn" data-go="agents"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg>Agents<span class="tick">5</span></button>
+    <span class="rail-label">Delivery</span>
+    <button class="navbtn" data-go="results"><svg class="ic" viewBox="0 0 24 24"><path d="M3 18l5-6 4 4 4-7 5 6M3 21h18"/></svg>Results<span class="tick">3</span></button>
+    <button class="navbtn" data-go="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.18V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 7.26 19.4l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.09 14H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 8.26l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 10 4.6V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.18l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 21 10.6H21a2 2 0 1 1 0 4h-.09Z"/></svg>Settings</button>
     <div class="rail-foot">
       <div class="who">
         <div class="av">CK</div>
@@ -455,19 +506,19 @@ a{color:var(--accent);text-decoration:none}
         <h2 id="pagetitle">Sprint planner</h2>
       </div>
       <div class="sp"></div>
-      <span class="pill p-live" id="livepill"><span class="dot"></span>2 runs live</span>
-      <button class="btn"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</button>
-      <button class="btn pri"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New run</button>
+      <span class="pill p-live" id="livepill"><span class="dot"></span>1 run live</span>
+      <button class="btn">Import from Jira</button>
+      <button class="btn pri" data-go="run">Run pipeline →</button>
     </div>
     <div class="pane">
 
     <!-- ---------- PLANNER ---------- -->
     <section class="screen on" id="s-plan">
       <div class="stat" style="margin-bottom:16px">
-        <div><div class="v">34</div><div class="k">Points committed</div><div class="dl" style="color:var(--pass)">▲ 6 vs sprint 23</div></div>
-        <div><div class="v">11</div><div class="k">Stories in scope</div><div class="dl" style="color:var(--muted)">3 need acceptance criteria</div></div>
-        <div><div class="v">86%</div><div class="k">Spec coverage forecast</div><div class="dl" style="color:var(--pass)">▲ 12 pts after generation</div></div>
-        <div><div class="v">4.2h</div><div class="k">Est. runner time</div><div class="dl" style="color:var(--muted)">across 4 runners</div></div>
+        <div><div class="v">34</div><div class="k">Points committed</div><div class="dl" style="color:var(--muted)">of 36 capacity</div></div>
+        <div><div class="v">8</div><div class="k">Stories from Jira</div><div class="dl" style="color:var(--muted)">project PAY</div></div>
+        <div><div class="v" style="color:var(--heal)">2</div><div class="k">Missing acceptance criteria</div><div class="dl" style="color:var(--heal)">clarify will ask</div></div>
+        <div><div class="v">5</div><div class="k">Pipelines finished</div><div class="dl" style="color:var(--pass)">▲ 41 Xray cases</div></div>
       </div>
       <div class="split">
         <div class="card">
@@ -475,8 +526,9 @@ a{color:var(--accent);text-decoration:none}
             <h3>Sprint 24 backlog</h3>
             <span class="pill p-idle">Sep 1 – Sep 12</span>
             <div class="sp"></div>
+            <span class="sysbadge"><span class="dot" style="background:var(--accent)"></span>PAY</span>
             <button class="btn sm">Import from Jira</button>
-            <button class="btn sm pri" data-go="run">Generate specs →</button>
+            <button class="btn sm pri" data-go="run">Run all 8 →</button>
           </div>
           <div id="storylist"></div>
         </div>
@@ -484,11 +536,11 @@ a{color:var(--accent);text-decoration:none}
           <div class="card">
             <div class="card-h">
               <h3>sprint-planner</h3>
-              <span class="pill p-pass"><span class="dot"></span>Proposal ready</span>
+              <span class="pill p-pass"><span class="dot"></span>Proposal applied</span>
             </div>
             <div class="card-b grid" style="gap:13px">
               <div class="agent-out">
-                Committing <strong>34 points across 11 stories</strong> fits your 3-sprint rolling velocity of 31–36. I moved <strong>PAY-812</strong> ahead of <strong>PAY-806</strong> — 806's checkout assertions depend on 812's new idempotency key. <strong>PAY-830</strong> has no acceptance criteria; I drafted three and flagged them for review rather than guessing.
+                Committing <strong>34 points across 8 stories</strong>, within your rolling velocity of 31–36. I moved <strong>PAY-812</strong> ahead of <strong>PAY-806</strong> — 806's checkout assertions depend on 812's idempotency key. <strong>PAY-830</strong> and <strong>PAY-858</strong> arrived with no acceptance criteria; I drafted them and flagged them rather than guessing.
               </div>
               <div class="cap">
                 <div class="cap-row"><span>Team capacity</span><b>36 pts</b></div>
@@ -499,23 +551,18 @@ a{color:var(--accent);text-decoration:none}
               <div class="grid" style="gap:8px">
                 <span class="lbl">Risks it flagged</span>
                 <div style="display:flex;gap:7px;flex-wrap:wrap">
-                  <span class="pill p-heal"><span class="dot"></span>3 stories missing AC</span>
+                  <span class="pill p-heal"><span class="dot"></span>2 stories missing AC</span>
                   <span class="pill p-heal"><span class="dot"></span>1 cross-team dependency</span>
-                  <span class="pill p-fail"><span class="dot"></span>PAY-799 flaky since S-22</span>
                 </div>
-              </div>
-              <div style="display:flex;gap:8px">
-                <button class="btn pri" style="flex:1;justify-content:center">Accept plan</button>
-                <button class="btn">Revise</button>
               </div>
             </div>
           </div>
           <div class="card">
             <div class="card-h"><h3>Hand off to</h3></div>
             <div class="card-b grid" style="gap:9px">
-              <div class="io"><span class="tag">11 stories</span><span class="ar">→</span><span class="tag">qe-batch</span><span class="ar">→</span><span class="tag">specs + assets</span></div>
-              <p class="sub">qe-batch fans all 11 stories out in parallel across your idle runners. Single stories go through qe-pipelines instead.</p>
-              <button class="btn" style="justify-content:center" data-go="run">Open pipeline view</button>
+              <div class="io"><span class="tag">Jira story</span><span class="ar">→</span><span class="tag">6 sub-agents</span><span class="ar">→</span><span class="tag">Xray + Bitbucket</span></div>
+              <p class="sub">Each committed story walks the same chain. Nothing reaches Xray or Bitbucket until you approve it on the Results screen.</p>
+              <button class="btn" style="justify-content:center" data-go="run">Open a pipeline run</button>
             </div>
           </div>
         </div>
@@ -524,181 +571,162 @@ a{color:var(--accent);text-decoration:none}
 
     <!-- ---------- AGENTS ---------- -->
     <section class="screen" id="s-agents">
-      <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:16px;flex-wrap:wrap">
-        <div>
-          <h3 style="font-size:17px">The six agents</h3>
-          <p class="sub" style="max-width:62ch;margin-top:5px">Each agent has one job, a typed input, and a typed output. They compose — the output of one is the input of the next — so a sprint walks from backlog to green without a human in the middle unless it asks for one.</p>
-        </div>
-        <div class="sp" style="margin-left:auto"></div>
-        <button class="btn sm">Agent logs</button>
+      <div style="margin-bottom:16px;max-width:62ch">
+        <h3 style="font-size:17px">Top-level agents</h3>
+        <p class="sub" style="margin-top:5px">Each has one job, a typed input, and a typed output, produced through a forced tool call so a malformed result never reaches your database. <span class="mono">qe-pipeline</span> is itself an orchestrator: it runs the six sub-agents below.</p>
       </div>
       <div class="agrid" id="agentgrid"></div>
+
       <div class="card" style="margin-top:16px">
-        <div class="card-h"><h3>Composition</h3><span class="pill p-idle">read left to right</span></div>
+        <div class="card-h"><h3>Inside qe-pipeline</h3><span class="pill p-idle">read left to right</span></div>
         <div class="card-b blueprint">
-          <div class="flow">
-            <div class="node" data-s="done"><span class="nm">sprint-planner</span><span class="st">backlog → plan</span><span class="spark"><i></i></span></div>
-            <div class="link" data-on="1"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
-            <div class="node" data-s="done"><span class="nm">qe-batch</span><span class="st">plan → 11 jobs</span><span class="spark"><i></i></span></div>
-            <div class="link" data-on="1"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
-            <div class="node" data-s="done"><span class="nm">qe-pipelines</span><span class="st">story → spec</span><span class="spark"><i></i></span></div>
-            <div class="link" data-on="1"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
-            <div class="node" data-s="run"><span class="nm">runner</span><span class="st">executing</span><span class="spark"><i style="width:62%"></i></span></div>
-            <div class="link"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
-            <div class="node" data-s="wait"><span class="nm">qe-auto-heal</span><span class="st">failure → patch</span><span class="spark"><i></i></span></div>
-            <div class="link"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
-            <div class="node" data-s="wait"><span class="nm">batch-heal</span><span class="st">fleet → PR</span><span class="spark"><i></i></span></div>
-          </div>
+          <div class="flow" id="chainflow"></div>
+          <ul class="sublist" id="sublist"></ul>
+          <p class="sub" style="border-top:1px solid var(--line-soft);padding-top:13px;margin-top:13px">
+            When the verifier objects, spec-author revises and the verifier re-checks — up to twice — so the pipeline converges instead of stopping at the first objection. A blocking question from clarify stops the chain outright rather than letting a guess flow downstream.
+          </p>
         </div>
       </div>
     </section>
 
-    <!-- ---------- RUN ---------- -->
+    <!-- ---------- PIPELINE RUN ---------- -->
     <section class="screen" id="s-run">
       <div class="card" style="margin-bottom:16px">
         <div class="card-h">
-          <h3>PAY-812 · Idempotency keys on checkout</h3>
+          <h3>PAY-812 · Idempotency keys on checkout submit</h3>
+          <a class="jira" href="#">PAY-812 in Jira ↗</a>
           <span class="pill p-live" id="runstate"><span class="dot"></span>Running</span>
           <div class="sp"></div>
-          <span class="mono sub" id="runclock">00:41</span>
-          <button class="btn sm">Cancel</button>
+          <span class="mono sub" id="runclock">00:00</span>
+          <button class="btn sm" id="btn-restart">Replay</button>
         </div>
         <div class="card-b blueprint">
-          <div class="flow" id="pipeflow"></div>
+          <div class="flow" id="stageflow"></div>
+          <ul class="sublist" id="stagesummaries" style="display:none"></ul>
         </div>
       </div>
+
+      <div class="card" id="proposals" style="margin-bottom:16px;display:none">
+        <div class="card-h">
+          <h3>Waiting for your approval</h3>
+          <span class="pill p-heal"><span class="dot"></span>nothing is written until you approve</span>
+        </div>
+        <div class="card-b grid" style="gap:10px" id="proplist"></div>
+      </div>
+
       <div class="split">
         <div class="term">
           <div class="term-h">
-            <span class="pill p-live" style="background:rgba(92,200,234,.12);border-color:rgba(92,200,234,.3);color:#5FC8EA"><span class="dot"></span>live</span>
-            <span class="lbl">agent stream · runner <span class="mono">eu-ci-02</span></span>
+            <span class="pill p-live" id="streamstate" style="background:rgba(92,200,234,.12);border-color:rgba(92,200,234,.3);color:#5FC8EA"><span class="dot"></span>live</span>
+            <span class="lbl">agent stream</span>
             <div class="sp"></div>
-            <button class="btn sm" style="background:transparent;border-color:rgba(255,255,255,.14);color:#9FB0C9" id="btn-restart">Replay</button>
+            <span class="mono" style="font-size:11px;color:#7E90AC" id="linecount">0 lines</span>
           </div>
           <div class="term-b" id="stream"></div>
         </div>
         <div class="grid">
           <div class="card">
-            <div class="card-h"><h3>Assets produced</h3><span class="pill p-acc" id="assetcount">0</span></div>
-            <div class="card-b grid" style="gap:8px" id="assets"></div>
+            <div class="card-h"><h3>Xray test cases</h3><span class="pill p-acc" id="tccount">0</span></div>
+            <div class="card-b grid" style="gap:8px" id="testcases">
+              <p class="sub">spec-author has not produced any yet.</p>
+            </div>
           </div>
           <div class="card">
-            <div class="card-h"><h3>Where it ran</h3></div>
-            <div class="card-b grid" style="gap:11px">
-              <div style="display:flex;align-items:center;gap:10px">
-                <span class="beat" data-s="busy"></span>
-                <div><div class="mono" style="font-size:12.5px;font-weight:600">eu-ci-02</div><div class="sub">Hetzner · fsn1 · 8 vCPU</div></div>
-                <div class="sp" style="margin-left:auto"></div>
-                <span class="pill p-live">claimed</span>
-              </div>
-              <hr class="hr">
-              <p class="sub">The runner pulled this job over its own outbound connection. Gantry never opened a port on your network and holds no SSH key.</p>
-              <button class="btn" style="justify-content:center" data-go="runners">Manage runners</button>
+            <div class="card-h"><h3>Files</h3><span class="pill p-acc" id="filecount">0</span></div>
+            <div class="card-b grid" style="gap:8px" id="files">
+              <p class="sub">Nothing written yet.</p>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ---------- RUNNERS ---------- -->
-    <section class="screen" id="s-runners">
-      <div class="split">
-        <div class="card">
-          <div class="card-h">
-            <h3>Connected runners</h3>
-            <span class="pill p-pass"><span class="dot"></span>3 up</span>
-            <div class="sp"></div>
-            <button class="btn sm pri">Add runner</button>
-          </div>
-          <div id="runnerlist"></div>
-        </div>
-        <div class="grid">
-          <div class="card">
-            <div class="card-h"><h3>Connect a machine</h3></div>
-            <div class="card-b grid" style="gap:12px">
-              <p class="sub">Run this on any box — your laptop, a CI worker, a bare-metal rack. It dials out to Gantry and starts claiming jobs.</p>
-              <div class="code"><span class="c"># any machine, cloud or local</span><br>npx <span class="k">@gantry/runner</span> connect \<br>&nbsp;&nbsp;--token <span class="k">gnt_rnr_7f3c…a91</span> \<br>&nbsp;&nbsp;--name <span class="k">my-laptop</span> --slots <span class="k">2</span></div>
-              <div style="display:flex;gap:8px">
-                <button class="btn sm">Copy command</button>
-                <button class="btn sm">Rotate token</button>
-              </div>
-              <hr class="hr">
-              <div class="grid" style="gap:7px">
-                <span class="lbl">Requirements</span>
-                <p class="sub">Outbound HTTPS to gantry.app. No inbound ports, no VPN, no SSH key held by us. The token scopes to one workspace and can be revoked here.</p>
-              </div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-h"><h3>Queue</h3><span class="pill p-heal"><span class="dot"></span>2 waiting</span></div>
-            <div class="card-b grid" style="gap:9px">
-              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5"/></svg><span class="p">PAY-806 · spec-gen</span><span class="z">queued 0:12</span></div>
-              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5"/></svg><span class="p">PAY-830 · asset-gen</span><span class="z">queued 0:04</span></div>
-              <p class="sub">Both are waiting on a free slot. Add a runner or raise <span class="mono">--slots</span> to drain faster.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ---------- HEAL ---------- -->
-    <section class="screen" id="s-heal">
+    <!-- ---------- RESULTS ---------- -->
+    <section class="screen" id="s-results">
       <div class="stat" style="margin-bottom:16px">
-        <div><div class="v">312</div><div class="k">Specs executed</div><div class="dl" style="color:var(--muted)">sprint 24 to date</div></div>
-        <div><div class="v" style="color:var(--pass)">297</div><div class="k">Passing</div><div class="dl" style="color:var(--pass)">95.2%</div></div>
-        <div><div class="v" style="color:var(--fail)">15</div><div class="k">Failing</div><div class="dl" style="color:var(--heal)">11 have a proposed patch</div></div>
-        <div><div class="v" style="color:var(--heal)">9</div><div class="k">Healed automatically</div><div class="dl" style="color:var(--muted)">2 needed a human</div></div>
+        <div><div class="v">14</div><div class="k">Pipeline runs</div><div class="dl" style="color:var(--muted)">this workspace</div></div>
+        <div><div class="v" style="color:var(--pass)">11</div><div class="k">Reviewer approved</div><div class="dl" style="color:var(--pass)">78.6%</div></div>
+        <div><div class="v" style="color:var(--heal)">3</div><div class="k">Blocked, needs answers</div><div class="dl" style="color:var(--heal)">clarify is waiting</div></div>
+        <div><div class="v">32/41</div><div class="k">Test cases in Xray</div><div class="dl" style="color:var(--muted)">published / generated</div></div>
       </div>
       <div class="split">
         <div class="card">
           <div class="card-h">
-            <h3>qe-auto-heal · proposed patch</h3>
-            <span class="pill p-heal"><span class="dot"></span>Awaiting review</span>
-            <div class="sp"></div>
-            <span class="mono sub">checkout.idempotency.spec.ts</span>
+            <h3>Awaiting approval</h3>
+            <span class="pill p-heal"><span class="dot"></span>3 proposals</span>
           </div>
-          <div class="card-b grid" style="gap:13px">
-            <div class="agent-out">
-              The selector <strong>[data-test=submit]</strong> stopped resolving after commit <strong>a19f4c2</strong> renamed it to <strong>[data-test=checkout-submit]</strong>. This is a rename, not a regression — the assertion below it still describes the behaviour correctly, so I only moved the selector and left the expectation alone.
+          <div class="card-b grid" style="gap:10px">
+            <div class="prop">
+              <div>
+                <div class="t">Create Xray test cases</div>
+                <div class="d">PAY-812 · 4 test cases → PAY</div>
+              </div>
+              <div class="sp"></div>
+              <span class="sysbadge">Xray</span>
+              <button class="btn sm">Review</button>
+              <button class="btn sm pri">Approve &amp; publish</button>
             </div>
-            <div class="diff">
-              <div class="d"><span class="g">41</span><span>  await page.goto('/checkout');</span></div>
-              <div class="d del"><span class="g">42</span><span>- await page.click('[data-test=submit]');</span></div>
-              <div class="d add"><span class="g">42</span><span>+ await page.click('[data-test=checkout-submit]');</span></div>
-              <div class="d"><span class="g">43</span><span>  await expect(page).toHaveURL(/\/receipt\//);</span></div>
-              <div class="d"><span class="g">44</span><span>  await expect(orderCount).toBe(1); // idempotent</span></div>
+            <div class="prop">
+              <div>
+                <div class="t">Commit branch &amp; open PR in Bitbucket</div>
+                <div class="d">acme/payments-web · qe/PAY-812-specs → main</div>
+              </div>
+              <div class="sp"></div>
+              <span class="sysbadge">Bitbucket</span>
+              <button class="btn sm">Review</button>
+              <button class="btn sm pri">Approve &amp; publish</button>
             </div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <button class="btn pri">Apply &amp; re-run</button>
-              <button class="btn">Open in editor</button>
-              <div class="sp" style="margin-left:auto"></div>
-              <span class="sub">verified green on <span class="mono">eu-ci-02</span> before proposing</span>
+            <div class="prop">
+              <div>
+                <div class="t">Post questions to Jira</div>
+                <div class="d">PAY-830 · 2 blocking questions from clarify</div>
+              </div>
+              <div class="sp"></div>
+              <span class="sysbadge">Jira</span>
+              <button class="btn sm">Review</button>
+              <button class="btn sm pri">Approve &amp; publish</button>
             </div>
+            <p class="fine">Approving is the only action in Gantry that writes to Jira, Xray or Bitbucket. Everything above this line stays inside Gantry until you click.</p>
           </div>
         </div>
         <div class="grid">
           <div class="card">
-            <div class="card-h"><h3>batch-heal</h3><span class="pill p-acc"><span class="dot"></span>11 candidates</span></div>
-            <div class="card-b grid" style="gap:12px">
-              <p class="sub">The same rename broke 11 specs across 4 suites. batch-heal patches all of them, re-runs each on a free runner, and opens one PR with only the ones that went green.</p>
-              <div class="grid" style="gap:7px">
-                <div class="cap-row"><span class="sub">Patched &amp; verified</span><b class="mono" style="color:var(--pass)">9 / 11</b></div>
-                <div class="bar-track"><div class="bar-fill" style="width:82%;background:var(--pass)"></div></div>
-                <div class="cap-row"><span class="sub">Escalated to you</span><b class="mono" style="color:var(--heal)">2</b></div>
-              </div>
-              <button class="btn pri" style="justify-content:center">Open PR with 9 fixes</button>
-              <p class="fine">The 2 escalations changed an assertion, not a selector. Gantry will not rewrite an expectation on its own.</p>
-            </div>
+            <div class="card-h"><h3>Recent runs</h3></div>
+            <div class="card-b grid" style="gap:8px" id="recentruns"></div>
           </div>
           <div class="card">
-            <div class="card-h"><h3>Failing suites</h3></div>
-            <div class="card-b grid" style="gap:8px">
-              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><span class="p">checkout/*</span><span class="pill p-heal" style="margin-left:auto">9 patched</span></div>
-              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><span class="p">refunds/*</span><span class="pill p-fail" style="margin-left:auto">2 escalated</span></div>
-              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><span class="p">wallet/*</span><span class="pill p-heal" style="margin-left:auto">healing</span></div>
-              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><span class="p">payouts/*</span><span class="pill p-fail" style="margin-left:auto">flaky · quarantine?</span></div>
+            <div class="card-h"><h3>Reviewer pass rate</h3></div>
+            <div class="card-b grid" style="gap:9px">
+              <div class="cap-row"><span class="sub">Approved</span><b class="mono" style="color:var(--pass)">11 / 14</b></div>
+              <div class="bar-track"><div class="bar-fill" style="width:78.6%;background:var(--pass)"></div></div>
+              <p class="sub">A blocked run is not a failure — it means clarify found something a wrong guess would have gotten wrong, and stopped to ask.</p>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- SETTINGS ---------- -->
+    <section class="screen" id="s-settings">
+      <div class="split">
+        <div class="card">
+          <div class="card-h"><h3>Atlassian wiring</h3><span class="pill p-pass"><span class="dot"></span>connected</span></div>
+          <div class="card-b grid" style="gap:13px">
+            <div class="grid" style="grid-template-columns:1fr 1fr;gap:13px">
+              <div class="grid" style="gap:6px"><span class="lbl">Jira project key</span><div class="code" style="padding:7px 10px">PAY</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Xray project key</span><div class="code" style="padding:7px 10px">PAY</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Bitbucket workspace</span><div class="code" style="padding:7px 10px">acme</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Bitbucket repository</span><div class="code" style="padding:7px 10px">payments-web</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Default branch</span><div class="code" style="padding:7px 10px">main</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Test framework</span><div class="code" style="padding:7px 10px">playwright</div></div>
+            </div>
+            <p class="sub">These are coordinates, not credentials. API tokens live in environment variables, so nothing secret is stored in the database.</p>
+            <button class="btn pri" style="justify-content:center">Save</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Credentials</h3><span class="pill p-pass"><span class="dot"></span>agents live</span></div>
+          <div class="card-b" id="creds"></div>
         </div>
       </div>
     </section>
@@ -716,48 +744,58 @@ a{color:var(--accent);text-decoration:none}
 
   /* ---------- data ---------- */
   const stories = [
-    { k: 'PAY-812', t: 'Idempotency keys on checkout submit', p: 5, on: 1, tags: [['p-pass', 'AC complete'], ['p-acc', 'spec ready']] },
-    { k: 'PAY-806', t: 'Retry failed card authorisation once', p: 3, on: 1, tags: [['p-pass', 'AC complete'], ['p-idle', 'depends on 812']] },
-    { k: 'PAY-830', t: 'Partial refund for split-tender orders', p: 8, on: 1, tags: [['p-heal', 'AC drafted by agent']] },
-    { k: 'PAY-799', t: 'Wallet balance reconciliation job', p: 5, on: 1, tags: [['p-fail', 'flaky since S-22']] },
-    { k: 'PAY-841', t: 'Apple Pay sheet on mobile web', p: 5, on: 1, tags: [['p-pass', 'AC complete']] },
-    { k: 'PAY-845', t: 'Decline reason codes surfaced to support', p: 3, on: 1, tags: [['p-pass', 'AC complete']] },
-    { k: 'PAY-851', t: 'Payout schedule editor', p: 5, on: 0, tags: [['p-idle', 'next sprint']] },
-    { k: 'PAY-858', t: 'Dispute evidence upload limits', p: 2, on: 1, tags: [['p-heal', 'AC drafted by agent']] }
+    { k: 'PAY-812', t: 'Idempotency keys on checkout submit', p: 5, on: 1, tags: [['p-pass', '3 acceptance criteria'], ['p-acc', 'specced']] },
+    { k: 'PAY-806', t: 'Retry a failed card authorisation once', p: 3, on: 1, tags: [['p-pass', '3 acceptance criteria'], ['p-idle', 'depends on 812']] },
+    { k: 'PAY-830', t: 'Partial refund for split-tender orders', p: 8, on: 1, tags: [['p-heal', 'no acceptance criteria'], ['p-heal', 'clarify is waiting']] },
+    { k: 'PAY-799', t: 'Wallet balance reconciliation job', p: 5, on: 1, tags: [['p-pass', '2 acceptance criteria']] },
+    { k: 'PAY-841', t: 'Apple Pay sheet on mobile web', p: 5, on: 1, tags: [['p-pass', '2 acceptance criteria']] },
+    { k: 'PAY-845', t: 'Decline reason codes surfaced to support', p: 3, on: 1, tags: [['p-pass', '2 acceptance criteria'], ['p-acc', 'specced']] },
+    { k: 'PAY-858', t: 'Dispute evidence upload limits', p: 2, on: 1, tags: [['p-heal', 'AC drafted by agent']] },
+    { k: 'PAY-851', t: 'Payout schedule editor', p: 5, on: 0, tags: [['p-idle', 'not committed']] }
   ];
 
   const agents = [
-    { id: 'sprint-planner', role: 'Planning', d: 'Reads the backlog, sizes what has no estimate, orders by dependency, and commits only what velocity supports. Flags what it refuses to guess at.', io: ['backlog', 'sprint plan'], st: ['p-pass', 'Proposal ready'], runs: '18 runs' },
-    { id: 'qe-pipelines', role: 'Generation · single', d: 'Takes one story end to end: acceptance criteria to spec file, fixtures, page objects, and test data. Runs the spec once before calling it done.', io: ['story', 'spec + assets'], st: ['p-live', 'Running'], runs: '204 runs' },
-    { id: 'qe-batch', role: 'Generation · parallel', d: 'Fans a whole sprint out at once. Shards stories across every idle runner, dedupes shared fixtures, and merges the result into one changeset.', io: ['sprint plan', 'n × specs'], st: ['p-live', 'Running'], runs: '31 runs' },
-    { id: 'qe-auto-heal', role: 'Repair · single', d: 'Reads the failure, the diff that caused it, and the spec. Proposes the smallest patch, verifies it green on a real runner, then asks you.', io: ['failure', 'verified patch'], st: ['p-heal', '2 awaiting review'], runs: '96 runs' },
-    { id: 'batch-heal', role: 'Repair · fleet', d: 'When one change breaks many specs, patches them together, re-runs each, and opens a single PR containing only the ones that actually went green.', io: ['n × failures', 'one PR'], st: ['p-idle', 'Idle'], runs: '12 runs' },
-    { id: 'qe-insights', role: 'Analysis', d: 'Watches every run for flake signatures, slow suites, and coverage gaps against the sprint, then tells the planner what to pull in next.', io: ['run history', 'signals'], st: ['p-pass', 'Healthy'], runs: '412 runs' }
+    { id: 'qe-pipeline', role: 'Orchestrator · six sub-agents', d: 'Walks one Jira story through story-analyzer, clarify, asset-resolver, spec-author, verifier and reviewer. Revises its own work when the verifier objects, and stops rather than guessing when the story is genuinely ambiguous.', io: ['Jira story', 'Xray tests + PR'], st: ['p-live', '1 running'], runs: '14 runs' },
+    { id: 'sprint-planner', role: 'Planning', d: 'Reads the backlog, sizes what has no estimate, orders by dependency, and commits only what velocity supports. Flags what it refuses to guess at.', io: ['backlog', 'sprint plan'], st: ['p-pass', 'proposal applied'], runs: '9 runs' },
+    { id: 'qe-insights', role: 'Analysis', d: 'Watches run history for flake signatures, slow suites and coverage gaps against the sprint, then tells the planner what to pull in next.', io: ['run history', 'signals'], st: ['p-pass', 'healthy'], runs: '31 runs' },
+    { id: 'qe-auto-heal', role: 'Repair · one spec', d: 'Reads a failure, the diff behind it, and the spec. Proposes the smallest patch — or refuses and says the application is what needs fixing.', io: ['failure', 'verified patch'], st: ['p-idle', 'awaiting job runs'], runs: '—' },
+    { id: 'batch-heal', role: 'Repair · fleet', d: 'When one change breaks many specs, groups them by root cause, patches each group once, and opens a single PR with only the ones that went green.', io: ['n failures', 'one PR'], st: ['p-idle', 'awaiting job runs'], runs: '—' }
   ];
 
   const agentIcon = {
+    'qe-pipeline': '<path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/>',
     'sprint-planner': '<path d="M4 6h16M4 12h10M4 18h13"/>',
-    'qe-pipelines': '<path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/>',
-    'qe-batch': '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    'qe-insights': '<path d="M3 18l5-6 4 4 4-7 5 6"/><path d="M3 21h18"/>',
     'qe-auto-heal': '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>',
-    'batch-heal': '<path d="M20 11a8 8 0 1 0-2.7 6"/><path d="M20 4v5h-5"/><path d="M8 12h8M12 8v8"/>',
-    'qe-insights': '<path d="M3 18l5-6 4 4 4-7 5 6"/><path d="M3 21h18"/>'
+    'batch-heal': '<path d="M20 11a8 8 0 1 0-2.7 6"/><path d="M20 4v5h-5"/><path d="M8 12h8M12 8v8"/>'
   };
 
-  const runners = [
-    { n: 'eu-ci-02', lo: 'Hetzner · fsn1 · 8 vCPU · cloud', s: 'busy', use: 62, sl: '2 / 2 slots', v: 'v1.4.0' },
-    { n: 'us-ci-01', lo: 'AWS · us-east-1 · 16 vCPU · cloud', s: 'up', use: 18, sl: '1 / 4 slots', v: 'v1.4.0' },
-    { n: 'chandan-mbp', lo: 'Local · macOS 15 · behind NAT', s: 'up', use: 0, sl: '0 / 2 slots', v: 'v1.4.0' },
-    { n: 'bare-metal-03', lo: 'On-prem · rack B · offline 2h', s: 'down', use: 0, sl: '— slots', v: 'v1.3.2' }
+  const subAgents = [
+    { id: 'story-analyzer', role: 'Reads the Jira story', d: 'Turns the story and its acceptance criteria into a list of testable behaviours, and separates what is genuinely unclear from what is merely unstated.' },
+    { id: 'clarify', role: 'Asks before guessing', d: 'Writes one answerable question per ambiguity, each with a suggested default. Stops the pipeline when a wrong guess would test the wrong thing.' },
+    { id: 'asset-resolver', role: 'Reuses what the repo has', d: 'Reads the Bitbucket repository to find fixtures, page objects and helpers that already exist, so the suite is extended rather than duplicated.' },
+    { id: 'spec-author', role: 'Writes specs and Xray cases', d: 'Writes complete runnable files against the repo’s own conventions, and Xray test cases with real steps and expected results.' },
+    { id: 'verifier', role: 'Checks the work', d: 'Maps every acceptance criterion to the test covering it, and hunts placeholders, broken imports and assertions that cannot fail.' },
+    { id: 'reviewer', role: 'The gate', d: 'Decides whether the suite is fit to propose to Xray and Bitbucket, and writes the pull request. Sends work back rather than waving it through.' }
   ];
 
-  const steps = [
-    { nm: 'read story', st: 'acceptance criteria' },
-    { nm: 'plan specs', st: '4 scenarios' },
-    { nm: 'write spec', st: 'playwright ts' },
-    { nm: 'fixtures', st: 'test data' },
-    { nm: 'dry run', st: 'on runner' },
-    { nm: 'commit', st: 'branch + PR' }
+  const recentRuns = [
+    ['PAY-812', '6/6', 'p-heal', 'needs review'],
+    ['PAY-845', '6/6', 'p-heal', 'needs review'],
+    ['PAY-830', '2/6', 'p-heal', 'blocked'],
+    ['PAY-799', '6/6', 'p-pass', 'published'],
+    ['PAY-841', '6/6', 'p-pass', 'published'],
+    ['PAY-858', '2/6', 'p-heal', 'blocked']
+  ];
+
+  const creds = [
+    ['ANTHROPIC_API_KEY', 'set', 'p-pass'],
+    ['JIRA_BASE_URL / EMAIL / API_TOKEN', 'set', 'p-pass'],
+    ['XRAY_CLIENT_ID / SECRET', 'set', 'p-pass'],
+    ['BITBUCKET_USERNAME / APP_PASSWORD', 'set', 'p-pass'],
+    ['Google OAuth', 'configured', 'p-pass'],
+    ['GitHub OAuth', 'not configured', 'p-heal'],
+    ['Database', 'postgres', 'p-idle']
   ];
 
   /* ---------- render: stories ---------- */
@@ -766,7 +804,7 @@ a{color:var(--accent);text-decoration:none}
     const row = el('div', 'story');
     row.innerHTML =
       `<span class="ck" data-on="${s.on}" role="checkbox" aria-checked="${s.on ? 'true' : 'false'}" tabindex="0"></span>
-       <div><div class="key">${s.k}</div><div class="ttl">${s.t}</div>
+       <div><div class="key"><a class="jira" href="#">${s.k} ↗</a></div><div class="ttl">${s.t}</div>
        <div class="meta">${s.tags.map(t => `<span class="pill ${t[0]}"><span class="dot"></span>${t[1]}</span>`).join('')}</div></div>
        <div class="pts">${s.p}<span class="sub" style="font-size:10px"> pt</span></div>`;
     const ck = $('.ck', row);
@@ -792,41 +830,207 @@ a{color:var(--accent);text-decoration:none}
     ag.append(c);
   });
 
-  /* ---------- render: runners ---------- */
-  const rl = $('#runnerlist');
-  runners.forEach(r => {
-    const row = el('div', 'rn');
-    const label = r.s === 'busy' ? ['p-live', 'running 1 job'] : r.s === 'up' ? ['p-pass', 'idle'] : ['p-idle', 'offline'];
-    row.innerHTML =
-      `<span class="beat" data-s="${r.s}"></span>
-       <div><div class="nm">${r.n}</div><div class="lo">${r.lo}</div></div>
-       <div class="gauge"><div class="t"><span>${r.sl}</span><span>${r.use}%</span></div>
-         <div class="bar-track"><div class="bar-fill" style="width:${r.use}%;background:${r.s === 'busy' ? 'var(--live)' : 'var(--pass)'}"></div></div></div>
-       <div style="display:flex;gap:8px;align-items:center"><span class="pill ${label[0]}"><span class="dot"></span>${label[1]}</span><span class="mono sub" style="font-size:11px">${r.v}</span></div>`;
-    rl.append(row);
-  });
-
-  /* ---------- render: pipeline nodes ---------- */
-  const pf = $('#pipeflow');
-  steps.forEach((s, i) => {
+  /* ---------- render: sub-agent chain ---------- */
+  function chainNode(a, i, cls) {
+    const wrap = el('div', 'flex');
+    wrap.style.display = 'flex';
+    wrap.style.alignItems = 'center';
     if (i) {
       const lk = el('div', 'link');
       lk.innerHTML = '<svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg>';
-      pf.append(lk);
+      wrap.append(lk);
     }
-    const n = el('div', 'node');
-    n.dataset.s = 'wait';
-    n.innerHTML = `<span class="nm">${s.nm}</span><span class="st">${s.st}</span><span class="spark"><i></i></span>`;
-    pf.append(n);
+    const n = el('div', cls);
+    n.dataset.s = 'pending';
+    n.innerHTML = `<span class="num">${a.order || i + 1}</span><span class="n">${a.id}</span><span class="r">${a.role}</span>`;
+    wrap.append(n);
+    return wrap;
+  }
+  const chainflow = $('#chainflow');
+  subAgents.forEach((a, i) => {
+    const w = chainNode(a, i, 'stage');
+    $('.stage', w).dataset.s = 'passed';
+    chainflow.append(w);
   });
+  const sub = $('#sublist');
+  subAgents.forEach((a, i) => {
+    const li = el('li');
+    li.innerHTML = `<span class="o">${i + 1}</span><div><h5>${a.id}</h5><span class="role">${a.role}</span><p>${a.d}</p></div>`;
+    sub.append(li);
+  });
+
+  /* ---------- render: results + settings ---------- */
+  const rr = $('#recentruns');
+  recentRuns.forEach(([k, s, tone, label]) => {
+    const d = el('div', 'asset');
+    d.innerHTML = `<span class="p">${k}</span><span class="z" style="margin-left:0">${s}</span><span class="pill ${tone}" style="margin-left:auto"><span class="dot"></span>${label}</span>`;
+    rr.append(d);
+  });
+  const cr = $('#creds');
+  creds.forEach(([k, v, tone]) => {
+    const d = el('div');
+    d.style.cssText = 'display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line-soft)';
+    d.innerHTML = `<span class="mono" style="font-size:12px;color:var(--ink-2)">${k}</span><span class="pill ${tone}" style="margin-left:auto"><span class="dot"></span>${v}</span>`;
+    cr.append(d);
+  });
+
+  /* ---------- pipeline run ---------- */
+  const stageflow = $('#stageflow');
+  subAgents.forEach((a, i) => stageflow.append(chainNode(a, i, 'stage')));
+  const stageEls = $$('#stageflow .stage');
+  const linkEls = $$('#stageflow .link');
+
+  // The script deliberately shows the revision loop: the verifier rejects the first
+  // attempt, spec-author fixes it, and only then does the reviewer approve.
+  const script = [
+    ['story-analyzer', 0, 'reading PAY-812 — 3 acceptance criteria', ''],
+    ['story-analyzer', 0, '4 testable behaviours; no blocking ambiguity', 'ok'],
+    ['clarify', 1, 'nothing needs clarifying — every criterion has one reading', 'ok'],
+    ['asset-resolver', 2, 'read 214 paths from acme/payments-web', 'dim'],
+    ['asset-resolver', 2, 'reuse e2e/fixtures/testUsers.ts — already covers these personas', 'ok'],
+    ['asset-resolver', 2, 'reuse e2e/pages/CheckoutPage.ts', 'ok'],
+    ['spec-author', 3, 'wrote e2e/tests/pay-812.spec.ts (96 lines)', 'ok'],
+    ['spec-author', 3, 'wrote e2e/fixtures/pay-812.ts (18 lines)', 'ok'],
+    ['spec-author', 3, '3 Xray test cases with steps and expected results', 'ok'],
+    ['verifier', 4, '2/3 criteria covered — "key expires after 24 hours" has no test', 'er'],
+    ['verifier', 4, 'revision 1: sending back to spec-author', 'wn'],
+    ['spec-author', 3, 'rewrote e2e/tests/pay-812.spec.ts — added the expiry case', 'ok'],
+    ['spec-author', 3, '4 Xray test cases', 'ok'],
+    ['verifier', 4, '3/3 criteria covered, no defects', 'ok'],
+    ['reviewer', 5, 'approved — every criterion maps to a test, files are runnable', 'ok'],
+    ['reviewer', 5, 'no assertion was weakened to make anything pass', 'dim'],
+    ['pipeline', 5, 'publications proposed — approve them to write to Xray and Bitbucket', 'ok']
+  ];
+
+  const testCases = [
+    ['Idempotency keys — same key twice creates one order', 'Submitting the same idempotency key twice creates exactly one order.', [
+      ['Navigate to the checkout screen', 'path: /checkout', 'The form loads with Pay enabled.'],
+      ['Submit with idempotency key K1', '{ key: "K1", amount: 1250 }', 'The order is created and a confirmation is shown.'],
+      ['Submit the identical request again', 'same payload', 'No second order is created.']
+    ]],
+    ['Idempotency keys — repeat returns the original order', 'The second response returns the original order, not an error.', [
+      ['Submit with key K1 twice', '{ key: "K1" }', 'Both responses carry the same order id.'],
+      ['Inspect the second response', '—', 'Status is 200, not 409.']
+    ]],
+    ['Idempotency keys — key expires after 24 hours', 'A key expires after 24 hours and is then reusable.', [
+      ['Submit with key K1', '{ key: "K1" }', 'Order created.'],
+      ['Advance the clock 24h and resubmit', 'same key', 'A new order is created.']
+    ]],
+    ['Checkout — double click creates one order', 'Submitting the same idempotency key twice creates exactly one order.', [
+      ['Double-click Pay', '—', 'Exactly one order exists afterwards.']
+    ]]
+  ];
+
+  const files = [
+    ['e2e/tests/pay-812.spec.ts', 'spec', '96 lines'],
+    ['e2e/fixtures/pay-812.ts', 'fixture', '18 lines'],
+    ['e2e/fixtures/testUsers.ts', 'reused', '—'],
+    ['e2e/pages/CheckoutPage.ts', 'reused', '—']
+  ];
+
+  const proposals = [
+    ['Create Xray test cases', 'PAY-812 · 4 test cases → PAY', 'Xray'],
+    ['Commit branch &amp; open PR in Bitbucket', 'acme/payments-web · qe/PAY-812-specs → main', 'Bitbucket']
+  ];
+
+  const stream = $('#stream');
+  let runTimer = null, clockTimer = null;
+
+  function resetRun() {
+    stream.innerHTML = '';
+    stageEls.forEach(n => { n.dataset.s = 'pending'; });
+    linkEls.forEach(l => l.dataset.on = '0');
+    $('#testcases').innerHTML = '<p class="sub">spec-author has not produced any yet.</p>';
+    $('#files').innerHTML = '<p class="sub">Nothing written yet.</p>';
+    $('#tccount').textContent = '0';
+    $('#filecount').textContent = '0';
+    $('#proposals').style.display = 'none';
+    $('#proplist').innerHTML = '';
+    $('#stagesummaries').style.display = 'none';
+    $('#runstate').className = 'pill p-live';
+    $('#runstate').innerHTML = '<span class="dot"></span>Running';
+    $('#streamstate').innerHTML = '<span class="dot"></span>live';
+    $('#runclock').textContent = '00:00';
+    $('#linecount').textContent = '0 lines';
+  }
+
+  function startRun() {
+    if (runTimer) { clearInterval(runTimer); clearInterval(clockTimer); runTimer = null; }
+    resetRun();
+
+    let i = 0, t = 0;
+    clockTimer = setInterval(() => { t++; $('#runclock').textContent = '00:' + String(t).padStart(2, '0'); }, 1000);
+
+    runTimer = setInterval(() => {
+      if (i >= script.length) {
+        clearInterval(runTimer); clearInterval(clockTimer); runTimer = null;
+        stageEls.forEach(n => n.dataset.s = 'passed');
+        linkEls.forEach(l => l.dataset.on = '1');
+        $('#runstate').className = 'pill p-heal';
+        $('#runstate').innerHTML = '<span class="dot"></span>Needs review';
+        $('#streamstate').innerHTML = '<span class="dot"></span>finished';
+        $('#streamstate').style.cssText = 'background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.15);color:#9FB0C9';
+        const cur = $('.cursor', stream); if (cur) cur.remove();
+        $('#proposals').style.display = '';
+        proposals.forEach(([t2, d, sys]) => {
+          const p = el('div', 'prop');
+          p.innerHTML = `<div><div class="t">${t2}</div><div class="d">${d}</div></div><div class="sp"></div><span class="sysbadge">${sys}</span><span class="pill p-heal"><span class="dot"></span>proposed</span><button class="btn sm pri">Approve &amp; publish</button>`;
+          $('#proplist').append(p);
+        });
+        return;
+      }
+
+      const [who, stageIdx, msg, kind] = script[i];
+      const line = el('div', 'ln');
+      line.innerHTML = `<span class="ts">00:${String(2 + i * 2).padStart(2, '0')}</span><span class="ag">${who}</span><span class="${kind}">${msg}</span>`;
+      const cur = $('.cursor', stream); if (cur) cur.remove();
+      stream.append(line);
+      stream.append(el('span', 'cursor'));
+      stream.scrollTop = stream.scrollHeight;
+      $('#linecount').textContent = `${i + 1} lines`;
+
+      // advance stages; a revision sends spec-author back to running
+      stageEls.forEach((n, k) => {
+        if (k < stageIdx) n.dataset.s = 'passed';
+        else if (k === stageIdx) n.dataset.s = kind === 'er' || kind === 'wn' ? 'blocked' : 'run';
+        else n.dataset.s = 'pending';
+      });
+      linkEls.forEach((l, k) => l.dataset.on = k < stageIdx ? '1' : '0');
+
+      // assets appear as they are produced
+      if (i === 8 || i === 12) {
+        const box = $('#testcases');
+        box.innerHTML = '';
+        const upTo = i === 8 ? 3 : 4;
+        testCases.slice(0, upTo).forEach(([s2, c, steps]) => {
+          const d = el('details', 'tc');
+          d.innerHTML = `<summary><span style="min-width:0;flex:1"><span class="s">${s2}</span><span class="c">covers: ${c}</span></span><span class="pill p-idle">Manual</span></summary>
+            <ol>${steps.map(([a, dt, e2]) => `<li><b>${a}</b>${dt !== '—' ? `<span class="dat">data: ${dt}</span>` : ''}<span class="exp">→ ${e2}</span></li>`).join('')}</ol>`;
+          box.append(d);
+        });
+        $('#tccount').textContent = String(upTo);
+      }
+      if (i === 7) {
+        const box = $('#files');
+        box.innerHTML = '';
+        files.forEach(([p, kind2, z]) => {
+          const a = el('div', 'asset');
+          a.innerHTML = `<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></svg><span class="p">${p}</span><span class="z">${kind2 === 'reused' ? 'reused' : z}</span>`;
+          box.append(a);
+        });
+        $('#filecount').textContent = '2 new';
+      }
+      i++;
+    }, 850);
+  }
 
   /* ---------- navigation ---------- */
   const titles = {
     plan: ['Sprint planner', 'sprint-24'],
     agents: ['Agents', 'agents'],
-    run: ['Pipeline run', 'runs / PAY-812'],
-    runners: ['Runners', 'runners'],
-    heal: ['Results & heal', 'results']
+    run: ['qe-pipeline · PAY-812', 'runs / PAY-812'],
+    results: ['Results', 'results'],
+    settings: ['Settings', 'settings']
   };
   const frame = $('#app-frame'), signin = $('#s-signin');
 
@@ -842,90 +1046,7 @@ a{color:var(--accent);text-decoration:none}
     if (id === 'run') startRun();
   }
   $$('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
-
-  /* ---------- simulated run ---------- */
-  const script = [
-    ['qe-pipelines', 'reading PAY-812 — 3 acceptance criteria, 1 drafted by sprint-planner', ''],
-    ['qe-pipelines', 'planning 4 scenarios: happy path, duplicate submit, expired key, network retry', ''],
-    ['qe-pipelines', 'wrote checkout.idempotency.spec.ts (128 lines)', 'ok'],
-    ['qe-pipelines', 'reusing fixture cardTokens.ts — already covers 3 test cards', 'dim'],
-    ['qe-pipelines', 'wrote fixtures/idempotencyKeys.ts', 'ok'],
-    ['runner', 'claimed by eu-ci-02 · 2 slots · fsn1', 'dim'],
-    ['runner', 'npx playwright test checkout.idempotency --reporter=line', 'dim'],
-    ['runner', '3 passed', 'ok'],
-    ['runner', '1 failed — duplicate submit: expected 1 order, got 2', 'er'],
-    ['qe-auto-heal', 'failure is in the app, not the spec — the assertion is correct', 'wn'],
-    ['qe-auto-heal', 'not patching. filing PAY-812-BUG with the reproduction', 'wn'],
-    ['qe-pipelines', 'committed to gantry/pay-812-specs · 2 files · awaiting your review', 'ok']
-  ];
-  const stream = $('#stream');
-  let runTimer = null, clockTimer = null;
-
-  function startRun() {
-    if (runTimer) return;
-    stream.innerHTML = '';
-    $$('#pipeflow .node').forEach(n => { n.dataset.s = 'wait'; $('i', n).style.width = '0'; });
-    $$('#pipeflow .link').forEach(l => l.dataset.on = '0');
-    $('#assets').innerHTML = '';
-    $('#assetcount').textContent = '0';
-    $('#runstate').className = 'pill p-live';
-    $('#runstate').innerHTML = '<span class="dot"></span>Running';
-
-    let i = 0, t = 0;
-    clockTimer = setInterval(() => {
-      t++; $('#runclock').textContent = '00:' + String(t).padStart(2, '0');
-    }, 1000);
-
-    const assets = [
-      ['tests/checkout.idempotency.spec.ts', '128 lines'],
-      ['fixtures/idempotencyKeys.ts', '34 lines'],
-      ['reports/PAY-812.run.json', '3 pass · 1 fail']
-    ];
-
-    runTimer = setInterval(() => {
-      if (i >= script.length) {
-        clearInterval(runTimer); clearInterval(clockTimer); runTimer = null;
-        $('#runstate').className = 'pill p-heal';
-        $('#runstate').innerHTML = '<span class="dot"></span>Needs review';
-        const cur = $('.cursor', stream); if (cur) cur.remove();
-        return;
-      }
-      const [who, msg, kind] = script[i];
-      const line = el('div', 'ln');
-      const ts = '00:' + String(3 + i * 3).padStart(2, '0');
-      line.innerHTML = `<span class="ts">${ts}</span><span class="ag">${who}</span><span class="${kind}">${msg}</span>`;
-      const cur = $('.cursor', stream); if (cur) cur.remove();
-      stream.append(line);
-      const c = el('span', 'cursor'); stream.append(c);
-      stream.scrollTop = stream.scrollHeight;
-
-      // advance pipeline nodes
-      const nodes = $$('#pipeflow .node'), links = $$('#pipeflow .link');
-      const stage = Math.min(Math.floor(i / 2), nodes.length - 1);
-      nodes.forEach((n, k) => {
-        if (k < stage) { n.dataset.s = 'done'; }
-        else if (k === stage) { n.dataset.s = 'run'; $('i', n).style.width = (i % 2 ? 90 : 45) + '%'; }
-      });
-      links.forEach((l, k) => l.dataset.on = k < stage ? '1' : '0');
-
-      // assets appear as they are written
-      const shouldHave = i >= 11 ? 3 : i >= 4 ? 2 : i >= 2 ? 1 : 0;
-      const box = $('#assets');
-      while (box.children.length < shouldHave) {
-        const [p, z] = assets[box.children.length];
-        const a = el('div', 'asset');
-        a.innerHTML = `<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></svg><span class="p">${p}</span><span class="z">${z}</span>`;
-        box.append(a);
-        $('#assetcount').textContent = box.children.length;
-      }
-      i++;
-    }, 900);
-  }
-
-  $('#btn-restart').addEventListener('click', () => {
-    if (runTimer) { clearInterval(runTimer); clearInterval(clockTimer); runTimer = null; }
-    startRun();
-  });
+  $('#btn-restart').addEventListener('click', startRun);
 
   go('signin');
 })();
