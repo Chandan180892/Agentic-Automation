@@ -119,10 +119,9 @@ export async function logEvent(
   runId: string,
   message: string,
   level: "info" | "ok" | "warn" | "error" = "info",
-  source = "system",
-  jobId?: string
+  source = "system"
 ) {
-  return db.event.create({ data: { runId, jobId: jobId ?? null, message, level, source } });
+  return db.event.create({ data: { runId, message, level, source, stage: source } });
 }
 
 export async function finishRun(

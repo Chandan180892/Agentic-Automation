@@ -248,14 +248,13 @@ export async function planSprint(sprintId: string): Promise<void> {
   revalidatePath("/sprint");
 }
 
-// ------------------------------------------------- qe-pipelines / qe-batch
+// ------------------------------------------------------------ qe-pipeline --
 
-/** One story → specs and assets, executed inline and recorded as a Job with Assets. */
-export async function generateForStory(storyId: string) {
+/** One Jira story through the six sub-agents. */
+export async function runStoryPipeline(storyId: string): Promise<void> {
   const { workspace } = await ctx();
   const story = await db.story.findFirst({
     where: { id: storyId, sprint: { workspaceId: workspace.id } },
-    include: { sprint: true },
   });
   if (!story) throw new Error("Story not found in this workspace.");
 
@@ -263,397 +262,257 @@ export async function generateForStory(storyId: string) {
     data: {
       workspaceId: workspace.id,
       sprintId: story.sprintId,
-      agent: "qe-pipelines",
+      storyId: story.id,
+      agent: "qe-pipeline",
       mode: "single",
       status: "running",
       inputJson: JSON.stringify({ storyKey: story.key }),
     },
   });
-  const job = await db.job.create({
-    data: { runId: run.id, storyId: story.id, kind: "spec-gen", status: "running", payloadJson: "{}" },
-  });
-
-  await logEvent(run.id, `reading ${story.key} — ${story.title}`, "info", "qe-pipelines", job.id);
 
   try {
-    const result = await invokeAgent<PipelinesOut>("qe-pipelines", {
-      story: {
-        key: story.key,
-        title: story.title,
-        description: story.description,
-        acceptanceCriteria: parseJson<string[]>(story.acceptanceCriteria, []),
-        points: story.points,
-      },
-      framework: "playwright",
-      language: "typescript",
-    });
-    const out = result.output;
-
-    if (result.mode === "simulated") {
-      await logEvent(run.id, "No ANTHROPIC_API_KEY set — output came from the built-in simulator.", "warn", "qe-pipelines", job.id);
-    }
-    for (const s of out.scenarios) {
-      await logEvent(run.id, `scenario: ${s.name} (covers: ${s.criterion})`, "info", "qe-pipelines", job.id);
-    }
-    for (const a of out.assets) {
-      await db.asset.create({
-        data: { jobId: job.id, path: a.path, kind: a.kind, content: a.content, bytes: a.content.length },
-      });
-      await logEvent(run.id, `wrote ${a.path} (${a.content.split("\n").length} lines)`, "ok", "qe-pipelines", job.id);
-    }
-    if (out.needsHuman) {
-      await logEvent(run.id, out.notes || "Needs a human before these specs can be trusted.", "warn", "qe-pipelines", job.id);
-    }
-
-    await db.job.update({
-      where: { id: job.id },
-      data: { status: "passed", resultJson: JSON.stringify(out), finishedAt: new Date() },
-    });
-    await db.story.update({ where: { id: story.id }, data: { status: "specced" } });
-    await finishRun(run.id, out.needsHuman ? "needs_review" : "succeeded", out);
+    const { runPipeline } = await import("@/lib/agents/pipeline");
+    await runPipeline({ runId: run.id, storyId: story.id });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    await logEvent(run.id, msg, "error", "qe-pipelines", job.id);
-    await db.job.update({ where: { id: job.id }, data: { status: "failed", finishedAt: new Date() } });
+    await logEvent(run.id, msg, "error", "pipeline");
     await finishRun(run.id, "failed", undefined, msg);
   }
 
-  revalidatePath("/runs");
   revalidatePath("/sprint");
   redirect(`/runs/${run.id}`);
 }
 
-/** The whole committed sprint, sharded by qe-batch and queued for the runners. */
-export async function batchGenerate(sprintId: string) {
+/** Every committed story, one pipeline each. Sequential so Atlassian rate limits hold. */
+export async function runSprintPipelines(sprintId: string): Promise<void> {
   const { workspace } = await ctx();
   const sprint = await db.sprint.findFirst({
     where: { id: sprintId, workspaceId: workspace.id },
     include: { stories: { where: { committed: true }, orderBy: { priority: "asc" } } },
   });
   if (!sprint) throw new Error("Sprint not found in this workspace.");
-  if (sprint.stories.length === 0) throw new Error("No committed stories to generate from.");
+  if (sprint.stories.length === 0) throw new Error("No committed stories to run.");
 
-  const slots = await db.runner.aggregate({
-    where: { workspaceId: workspace.id, status: { in: ["online", "busy"] } },
-    _sum: { slots: true },
-  });
-  const available = Math.max(1, slots._sum.slots ?? 2);
+  let lastRunId = "";
+  for (const story of sprint.stories) {
+    const run = await db.run.create({
+      data: {
+        workspaceId: workspace.id,
+        sprintId: sprint.id,
+        storyId: story.id,
+        agent: "qe-pipeline",
+        mode: "batch",
+        status: "running",
+        inputJson: JSON.stringify({ storyKey: story.key, sprint: sprint.name }),
+      },
+    });
+    lastRunId = run.id;
+    try {
+      const { runPipeline } = await import("@/lib/agents/pipeline");
+      await runPipeline({ runId: run.id, storyId: story.id });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await logEvent(run.id, msg, "error", "pipeline");
+      await finishRun(run.id, "failed", undefined, msg);
+    }
+  }
 
-  const run = await db.run.create({
-    data: {
-      workspaceId: workspace.id,
-      sprintId: sprint.id,
-      agent: "qe-batch",
-      mode: "batch",
-      status: "running",
-      inputJson: JSON.stringify({ stories: sprint.stories.length, availableSlots: available }),
-    },
-  });
+  revalidatePath("/sprint");
+  redirect(lastRunId ? `/runs/${lastRunId}` : "/sprint");
+}
 
-  try {
-    const result = await invokeAgent<BatchOut>("qe-batch", {
-      sprintName: sprint.name,
-      availableSlots: available,
-      framework: "playwright",
-      stories: sprint.stories.map((s) => ({
+// ------------------------------------------------------------- Jira import --
+
+export async function importFromJira(formData: FormData): Promise<void> {
+  const { workspace } = await ctx();
+  const sprintId = String(formData.get("sprintId"));
+  const projectKey = String(formData.get("projectKey") || workspace.jiraProjectKey).trim();
+  if (!projectKey) throw new Error("A Jira project key is required.");
+
+  const sprint = await db.sprint.findFirst({ where: { id: sprintId, workspaceId: workspace.id } });
+  if (!sprint) throw new Error("Sprint not found in this workspace.");
+
+  const { fetchStories } = await import("@/lib/atlassian/jira");
+  const stories = await fetchStories(projectKey, 50);
+
+  for (const [i, s] of stories.entries()) {
+    await db.story.upsert({
+      where: { sprintId_key: { sprintId, key: s.key } },
+      create: {
+        sprintId,
         key: s.key,
-        title: s.title,
+        jiraId: s.id,
+        jiraUrl: s.url,
+        issueType: s.issueType,
+        title: s.summary,
         description: s.description,
-        acceptanceCriteria: parseJson<string[]>(s.acceptanceCriteria, []),
-        points: s.points,
-      })),
+        acceptanceCriteria: JSON.stringify(s.acceptanceCriteria),
+        points: s.storyPoints,
+        priority: i,
+        tagsJson: JSON.stringify(s.labels),
+      },
+      update: {
+        jiraId: s.id,
+        jiraUrl: s.url,
+        issueType: s.issueType,
+        title: s.summary,
+        description: s.description,
+        acceptanceCriteria: JSON.stringify(s.acceptanceCriteria),
+        points: s.storyPoints,
+        tagsJson: JSON.stringify(s.labels),
+      },
     });
-    const out = result.output;
-
-    if (result.mode === "simulated") {
-      await logEvent(run.id, "No ANTHROPIC_API_KEY set — shard plan came from the built-in simulator.", "warn", "qe-batch");
-    }
-    await logEvent(run.id, out.summary, "info", "qe-batch");
-    for (const f of out.sharedFixtures) {
-      await logEvent(run.id, `shared fixture ${f.path} — ${f.reason}`, "info", "qe-batch");
-    }
-
-    // One queued job per story. Runners claim these over their outbound connection.
-    const byKey = new Map(sprint.stories.map((s) => [s.key, s]));
-    for (const shard of out.shards) {
-      for (const key of shard.storyKeys) {
-        const story = byKey.get(key);
-        if (!story) continue;
-        await db.job.create({
-          data: {
-            runId: run.id,
-            storyId: story.id,
-            kind: "spec-gen",
-            status: "queued",
-            payloadJson: JSON.stringify({
-              shard: shard.shard,
-              storyKey: story.key,
-              title: story.title,
-              description: story.description,
-              acceptanceCriteria: parseJson<string[]>(story.acceptanceCriteria, []),
-              framework: "playwright",
-            }),
-          },
-        });
-      }
-      await logEvent(run.id, `shard ${shard.shard}: ${shard.storyKeys.join(", ")} (~${shard.estimatedMinutes}m)`, "info", "qe-batch");
-    }
-
-    await logEvent(run.id, `${sprint.stories.length} jobs queued — waiting for a runner to claim them.`, "ok", "qe-batch");
-    await db.run.update({ where: { id: run.id }, data: { outputJson: JSON.stringify(out) } });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await logEvent(run.id, msg, "error", "qe-batch");
-    await finishRun(run.id, "failed", undefined, msg);
   }
 
-  revalidatePath("/runs");
-  redirect(`/runs/${run.id}`);
-}
-
-// ------------------------------------------------- qe-auto-heal / batch-heal
-
-export async function healJob(jobId: string) {
-  const { workspace } = await ctx();
-  const job = await db.job.findFirst({
-    where: { id: jobId, run: { workspaceId: workspace.id } },
-    include: { assets: true, run: true },
-  });
-  if (!job) throw new Error("Job not found in this workspace.");
-
-  const spec = job.assets.find((a) => a.kind === "spec");
-  const result = parseJson<{ failureOutput?: string; diff?: string }>(job.resultJson, {});
-
-  const run = await db.run.create({
-    data: {
-      workspaceId: workspace.id,
-      sprintId: job.run.sprintId,
-      agent: "qe-auto-heal",
-      mode: "single",
-      status: "running",
-      inputJson: JSON.stringify({ jobId, specPath: spec?.path }),
-    },
-  });
-
-  try {
-    const out = (
-      await invokeAgent<HealOut>("qe-auto-heal", {
-        specPath: spec?.path ?? "tests/unknown.spec.ts",
-        specContent: spec?.content ?? "",
-        failureOutput: result.failureOutput ?? "Test failed with no captured output.",
-        recentDiff: result.diff ?? "",
-      })
-    ).output;
-
-    await logEvent(run.id, out.diagnosis, out.shouldPatch ? "info" : "warn", "qe-auto-heal");
-    await logEvent(run.id, out.reason, out.shouldPatch ? "info" : "warn", "qe-auto-heal");
-
-    if (out.shouldPatch && out.patch) {
-      const healJobRow = await db.job.create({
-        data: { runId: run.id, storyId: job.storyId, kind: "heal", status: "passed", payloadJson: "{}", finishedAt: new Date() },
-      });
-      await db.asset.create({
-        data: {
-          jobId: healJobRow.id,
-          path: out.patch.path,
-          kind: "patch",
-          content: out.patch.unifiedDiff,
-          bytes: out.patch.unifiedDiff.length,
-        },
-      });
-      await logEvent(run.id, `patch proposed for ${out.patch.path} — awaiting your review`, "ok", "qe-auto-heal");
-      await finishRun(run.id, "needs_review", out);
-    } else {
-      await logEvent(run.id, "Not patching. The application is what needs to change.", "warn", "qe-auto-heal");
-      await finishRun(run.id, "needs_review", out);
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await logEvent(run.id, msg, "error", "qe-auto-heal");
-    await finishRun(run.id, "failed", undefined, msg);
+  if (workspace.jiraProjectKey !== projectKey) {
+    await db.workspace.update({ where: { id: workspace.id }, data: { jiraProjectKey: projectKey } });
   }
-
-  revalidatePath("/results");
-  redirect(`/runs/${run.id}`);
+  revalidatePath("/sprint");
 }
 
-export async function batchHeal() {
-  const { workspace } = await ctx();
-  const failed = await db.job.findMany({
-    where: { run: { workspaceId: workspace.id }, status: "failed" },
-    include: { assets: true },
-    orderBy: { createdAt: "desc" },
-    take: 25,
-  });
-  if (failed.length === 0) throw new Error("Nothing is failing right now.");
-
-  const run = await db.run.create({
-    data: {
-      workspaceId: workspace.id,
-      agent: "batch-heal",
-      mode: "batch",
-      status: "running",
-      inputJson: JSON.stringify({ failures: failed.length }),
-    },
-  });
-
-  try {
-    const out = (
-      await invokeAgent<BatchHealOut>("batch-heal", {
-        failures: failed.map((j) => {
-          const spec = j.assets.find((a) => a.kind === "spec");
-          const res = parseJson<{ failureOutput?: string }>(j.resultJson, {});
-          return {
-            specPath: spec?.path ?? `job-${j.id}`,
-            specContent: spec?.content ?? "",
-            failureOutput: res.failureOutput ?? "Test failed with no captured output.",
-          };
-        }),
-        recentDiff: "",
-      })
-    ).output;
-
-    await logEvent(run.id, out.summary, "info", "batch-heal");
-    for (const g of out.groups) {
-      await logEvent(run.id, `root cause: ${g.signature} — ${g.specPaths.length} specs`, "info", "batch-heal");
-    }
-    const healJobRow = await db.job.create({
-      data: { runId: run.id, kind: "heal", status: "passed", payloadJson: "{}", finishedAt: new Date() },
-    });
-    for (const p of out.patches) {
-      await db.asset.create({
-        data: { jobId: healJobRow.id, path: p.path, kind: "patch", content: p.unifiedDiff, bytes: p.unifiedDiff.length },
-      });
-      await logEvent(run.id, `patched ${p.path}${p.verified ? " — verified green" : ""}`, "ok", "batch-heal");
-    }
-    for (const e of out.escalations) {
-      await logEvent(run.id, `escalated ${e.specPath}: ${e.reason}`, "warn", "batch-heal");
-    }
-    await finishRun(run.id, "needs_review", out);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await logEvent(run.id, msg, "error", "batch-heal");
-    await finishRun(run.id, "failed", undefined, msg);
-  }
-
-  revalidatePath("/results");
-  redirect(`/runs/${run.id}`);
-}
-
-// ------------------------------------------------------------------ runners
-
-export async function createRunner(formData: FormData) {
-  const { workspace } = await ctx();
-  const name = String(formData.get("name") || "").trim() || `runner-${Date.now() % 1000}`;
-  const kind = String(formData.get("kind") || "cloud") === "local" ? "local" : "cloud";
-  const slots = Math.max(1, Math.min(16, Number(formData.get("slots") || 2)));
-
-  const { token, hash, hint } = newRunnerToken();
-  await db.runner.create({
-    data: {
-      workspaceId: workspace.id,
-      name,
-      kind,
-      slots,
-      location: String(formData.get("location") || "").trim(),
-      tokenHash: hash,
-      tokenHint: hint,
-      status: "offline",
-    },
-  });
-
-  revalidatePath("/runners");
-  // The token is shown exactly once, on the redirect target.
-  redirect(`/runners?token=${encodeURIComponent(token)}&name=${encodeURIComponent(name)}`);
-}
-
-export async function deleteRunner(runnerId: string) {
-  const { workspace } = await ctx();
-  const runner = await db.runner.findFirst({ where: { id: runnerId, workspaceId: workspace.id } });
-  if (!runner) return;
-  await db.runner.delete({ where: { id: runnerId } });
-  revalidatePath("/runners");
-}
-
-// ------------------------------------------------------- applying a patch --
+// ------------------------------------------------------------- publishing --
 
 /**
- * Accept a patch qe-auto-heal or batch-heal proposed. The patch is recorded as accepted and
- * a fresh execute job is queued, so a runner re-runs the spec and the result is real rather
- * than asserted. Gantry does not write to your repository — the runner owns the working tree.
+ * Writes an approved proposal to Atlassian. This is the only path in the app that mutates
+ * Jira, Xray or Bitbucket, and it runs only on an explicit click.
  */
-export async function applyPatch(assetId: string): Promise<void> {
+export async function publish(publicationId: string): Promise<void> {
   const { workspace } = await ctx();
-  const patch = await db.asset.findFirst({
-    where: { id: assetId, kind: "patch", job: { run: { workspaceId: workspace.id } } },
-    include: { job: { include: { run: true } } },
+  const pub = await db.publication.findFirst({
+    where: { id: publicationId, run: { workspaceId: workspace.id } },
+    include: { run: { include: { assets: true, testCases: true, story: true } } },
   });
-  if (!patch) throw new Error("Patch not found in this workspace.");
+  if (!pub) throw new Error("Proposal not found in this workspace.");
+  if (pub.status === "published") throw new Error("This proposal has already been published.");
 
-  const run = await db.run.create({
-    data: {
-      workspaceId: workspace.id,
-      sprintId: patch.job.run.sprintId,
-      agent: "qe-auto-heal",
-      mode: "single",
-      status: "running",
-      inputJson: JSON.stringify({ appliedPatch: patch.path }),
-    },
-  });
+  const payload = parseJson<Record<string, string>>(pub.payloadJson, {});
+  const runId = pub.runId;
 
-  const job = await db.job.create({
-    data: {
-      runId: run.id,
-      storyId: patch.job.storyId,
-      kind: "execute",
-      status: "queued",
-      payloadJson: JSON.stringify({
-        reason: "re-run after applying a proposed patch",
-        assets: [{ path: patch.path, kind: "patch", content: patch.content }],
-      }),
-    },
-  });
+  try {
+    if (pub.target === "jira-comment") {
+      const { addComment } = await import("@/lib/atlassian/jira");
+      const res = await addComment(payload.issueKey, payload.body);
+      await logEvent(runId, `posted questions to ${payload.issueKey}`, "ok", "jira");
+      await db.publication.update({
+        where: { id: pub.id },
+        data: { status: "published", publishedAt: new Date(), resultJson: JSON.stringify(res) },
+      });
+    } else if (pub.target === "xray-tests") {
+      const { createTests } = await import("@/lib/atlassian/xray");
+      const created = await createTests(
+        pub.run.testCases.map((t) => ({
+          summary: t.summary,
+          testType: t.testType as "Manual" | "Cucumber" | "Generic",
+          priority: t.priority,
+          steps: parseJson<{ action: string; data: string; expected: string }[]>(t.stepsJson, []),
+          gherkin: t.gherkin,
+          labels: parseJson<string[]>(t.labelsJson, []),
+          storyKey: pub.run.story?.key ?? "",
+          projectKey: payload.projectKey,
+        }))
+      );
+      for (const [i, c] of created.entries()) {
+        const row = pub.run.testCases[i];
+        if (row) {
+          await db.testCase.update({ where: { id: row.id }, data: { xrayKey: c.key, published: true } });
+        }
+        await logEvent(runId, `created Xray test ${c.key} — ${c.summary}`, "ok", "xray");
+      }
+      await db.publication.update({
+        where: { id: pub.id },
+        data: { status: "published", publishedAt: new Date(), resultJson: JSON.stringify(created) },
+      });
+    } else if (pub.target === "bitbucket-branch") {
+      const { commitFiles, createPullRequest } = await import("@/lib/atlassian/bitbucket");
+      const files = pub.run.assets
+        .filter((a) => !a.reused && a.content)
+        .map((a) => ({ path: a.path, content: a.content }));
+      if (files.length === 0) throw new Error("There are no generated files to commit.");
 
-  await logEvent(run.id, `applying patch to ${patch.path}`, "info", "qe-auto-heal", job.id);
-  await logEvent(
-    run.id,
-    "queued a re-run — a runner will verify the patch against the real suite",
-    "info",
-    "qe-auto-heal",
-    job.id
-  );
+      const commit = await commitFiles({
+        workspace: payload.workspace,
+        repo: payload.repo,
+        branch: payload.branch,
+        fromBranch: payload.fromBranch,
+        message: payload.message,
+        files,
+      });
+      await logEvent(runId, `committed ${files.length} file(s) to ${payload.branch}`, "ok", "bitbucket");
 
+      const pr = await createPullRequest({
+        workspace: payload.workspace,
+        repo: payload.repo,
+        title: payload.prTitle || payload.message,
+        description: payload.prDescription,
+        sourceBranch: payload.branch,
+        destinationBranch: payload.fromBranch,
+      });
+      await logEvent(runId, `opened pull request #${pr.id}`, "ok", "bitbucket");
+      await db.publication.update({
+        where: { id: pub.id },
+        data: {
+          status: "published",
+          publishedAt: new Date(),
+          resultJson: JSON.stringify({ ...commit, pullRequest: pr }),
+        },
+      });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logEvent(runId, msg, "error", pub.target);
+    await db.publication.update({ where: { id: pub.id }, data: { status: "failed", error: msg } });
+    throw err;
+  }
+
+  revalidatePath(`/runs/${runId}`);
   revalidatePath("/results");
-  redirect(`/runs/${run.id}`);
 }
 
-// -------------------------------------------------------------- qe-insights
+// ------------------------------------------------------------- qe-insights --
 
 export async function runInsights(): Promise<void> {
   const { workspace } = await ctx();
-  const jobs = await db.job.findMany({
-    where: { run: { workspaceId: workspace.id }, status: { in: ["passed", "failed"] } },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    include: { assets: true, story: { select: { key: true } } },
+  const runs = await db.run.findMany({
+    where: { workspaceId: workspace.id, agent: "qe-pipeline" },
+    orderBy: { startedAt: "desc" },
+    take: 100,
+    include: { assets: true, story: { select: { key: true } }, stages: true },
   });
-  if (jobs.length === 0) throw new Error("No finished jobs yet — run something first.");
+  if (runs.length === 0) throw new Error("No pipeline runs yet — run one first.");
 
   const { runId } = await runAgentTracked({
     workspaceId: workspace.id,
     agent: "qe-insights",
     input: {
-      window: `last ${jobs.length} jobs`,
-      runs: jobs.map((j) => ({
-        specPath: j.assets.find((a) => a.kind === "spec")?.path ?? `job-${j.id}`,
-        status: j.status,
-        durationMs:
-          j.finishedAt && j.claimedAt ? j.finishedAt.getTime() - j.claimedAt.getTime() : 0,
-        storyKey: j.story?.key ?? "",
+      window: `last ${runs.length} pipeline runs`,
+      runs: runs.map((r) => ({
+        specPath: r.assets.find((a) => a.kind === "spec")?.path ?? `run-${r.id}`,
+        status: r.status === "needs_review" || r.status === "succeeded" ? "passed" : "failed",
+        durationMs: r.finishedAt ? r.finishedAt.getTime() - r.startedAt.getTime() : 0,
+        storyKey: r.story?.key ?? "",
       })),
     },
   });
 
   revalidatePath("/results");
   redirect(`/runs/${runId}`);
+}
+
+// --------------------------------------------------------------- settings --
+
+export async function saveIntegrations(formData: FormData): Promise<void> {
+  const { workspace } = await ctx();
+  await db.workspace.update({
+    where: { id: workspace.id },
+    data: {
+      jiraProjectKey: String(formData.get("jiraProjectKey") || "").trim().toUpperCase(),
+      xrayProjectKey: String(formData.get("xrayProjectKey") || "").trim().toUpperCase(),
+      bitbucketWorkspace: String(formData.get("bitbucketWorkspace") || "").trim(),
+      bitbucketRepo: String(formData.get("bitbucketRepo") || "").trim(),
+      defaultBranch: String(formData.get("defaultBranch") || "main").trim(),
+      testFramework: String(formData.get("testFramework") || "playwright").trim(),
+    },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/sprint");
 }

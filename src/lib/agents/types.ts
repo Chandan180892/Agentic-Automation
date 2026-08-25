@@ -2,8 +2,7 @@ import type { z } from "zod";
 
 export type AgentId =
   | "sprint-planner"
-  | "qe-pipelines"
-  | "qe-batch"
+  | "qe-pipeline"
   | "qe-auto-heal"
   | "batch-heal"
   | "qe-insights";

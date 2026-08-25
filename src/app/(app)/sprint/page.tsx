@@ -7,7 +7,8 @@ import { parseJson, fmtDate } from "@/lib/utils";
 import { PageBar, Pane } from "@/components/page-bar";
 import { Card, CardHeader, CardBody, Pill, Label, Sub, Meter, Stat, StatRow, Button, Empty, buttonClass } from "@/components/ui";
 import { agentsAreLive } from "@/lib/agents/runtime";
-import { createSprint, planSprint, batchGenerate, toggleStory, deleteStory, generateForStory, addStory } from "../actions";
+import { createSprint, planSprint, runSprintPipelines, toggleStory, deleteStory, runStoryPipeline, addStory, importFromJira } from "../actions";
+import { jiraConfigured } from "@/lib/atlassian/config";
 import { AddStoryPanel } from "./add-story";
 import type * as S from "@/lib/agents/schemas";
 import type { z } from "zod";
@@ -85,8 +86,8 @@ export default async function SprintPage({
         <form action={planSprint.bind(null, sprint.id)}>
           <Button type="submit">Run sprint-planner</Button>
         </form>
-        <form action={batchGenerate.bind(null, sprint.id)}>
-          <Button type="submit" variant="primary">Generate specs →</Button>
+        <form action={runSprintPipelines.bind(null, sprint.id)}>
+          <Button type="submit" variant="primary">Run pipeline →</Button>
         </form>
       </PageBar>
 
@@ -124,6 +125,19 @@ export default async function SprintPage({
                 {fmtDate(sprint.startsAt)} – {fmtDate(sprint.endsAt)}
               </Pill>
               <div className="ml-auto" />
+              {jiraConfigured() && (
+                <form action={importFromJira} className="flex items-center gap-1.5">
+                  <input type="hidden" name="sprintId" value={sprint.id} />
+                  <input
+                    name="projectKey"
+                    defaultValue={workspace.jiraProjectKey}
+                    placeholder="PAY"
+                    aria-label="Jira project key"
+                    className="w-[74px] rounded-[7px] border border-line bg-surface px-2 py-[5px] font-mono text-[11.5px] uppercase outline-none focus:border-accent-line"
+                  />
+                  <Button type="submit" size="sm">Import from Jira</Button>
+                </form>
+              )}
               <AddStoryPanel sprintId={sprint.id} action={addStory} />
             </CardHeader>
 
@@ -161,7 +175,15 @@ export default async function SprintPage({
                       </form>
 
                       <div className="min-w-0">
-                        <div className="font-mono text-[11px] font-medium text-muted">{s.key}</div>
+                        <div className="font-mono text-[11px] font-medium text-muted">
+                          {s.jiraUrl ? (
+                            <a href={s.jiraUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                              {s.key} ↗
+                            </a>
+                          ) : (
+                            s.key
+                          )}
+                        </div>
                         <div className="mt-px text-[13.5px] font-semibold leading-[1.4]">{s.title}</div>
                         {s.description && (
                           <p className="mt-1 line-clamp-2 text-[12px] leading-[1.5] text-muted">{s.description}</p>
@@ -183,9 +205,9 @@ export default async function SprintPage({
                           {s.points ?? "—"}
                           <span className="text-[10px] text-muted"> pt</span>
                         </span>
-                        <form action={generateForStory.bind(null, s.id)}>
-                          <Button type="submit" size="sm" title="Run qe-pipelines on this story">
-                            Specs
+                        <form action={runStoryPipeline.bind(null, s.id)}>
+                          <Button type="submit" size="sm" title="Run the qe-pipeline on this story">
+                            Pipeline
                           </Button>
                         </form>
                         <form action={deleteStory.bind(null, s.id)}>
@@ -270,21 +292,19 @@ export default async function SprintPage({
               <CardHeader title="Hand off to" />
               <CardBody className="grid gap-2.5">
                 <div className="flex flex-wrap items-center gap-2 font-mono text-[10.5px] text-muted">
-                  <span className="rounded-[5px] border border-line-soft bg-surface-3 px-1.5 py-0.5">
-                    {committed.length} stories
-                  </span>
+                  <span className="rounded-[5px] border border-line-soft bg-surface-3 px-1.5 py-0.5">Jira story</span>
                   <span className="text-accent-line">→</span>
-                  <span className="rounded-[5px] border border-line-soft bg-surface-3 px-1.5 py-0.5">qe-batch</span>
+                  <span className="rounded-[5px] border border-line-soft bg-surface-3 px-1.5 py-0.5">6 sub-agents</span>
                   <span className="text-accent-line">→</span>
-                  <span className="rounded-[5px] border border-line-soft bg-surface-3 px-1.5 py-0.5">specs + assets</span>
+                  <span className="rounded-[5px] border border-line-soft bg-surface-3 px-1.5 py-0.5">Xray + Bitbucket</span>
                 </div>
                 <Sub>
-                  qe-batch shards every committed story across your idle runners and queues one job per
-                  story. A single story goes through qe-pipelines instead — the <b>Specs</b> button on
-                  each row.
+                  Each committed story walks the same chain: story-analyzer, clarify, asset-resolver,
+                  spec-author, verifier, reviewer. Nothing reaches Xray or Bitbucket until you approve
+                  it. One story at a time via <b>Pipeline</b> on its row.
                 </Sub>
-                <form action={batchGenerate.bind(null, sprint.id)}>
-                  <Button type="submit" className="w-full">Fan out {committed.length} stories</Button>
+                <form action={runSprintPipelines.bind(null, sprint.id)}>
+                  <Button type="submit" className="w-full">Run all {committed.length} stories</Button>
                 </form>
               </CardBody>
             </Card>

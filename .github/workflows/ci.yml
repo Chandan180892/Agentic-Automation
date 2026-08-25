@@ -33,15 +33,18 @@ jobs:
       - name: Agent contract checks
         run: npx tsx scripts/agents-check.ts
 
-      - name: Runner protocol and auth smoke tests
+      - name: Pipeline sub-agent checks
+        run: npx tsx scripts/pipeline-check.ts
+
+      - name: Orchestrator end-to-end
+        run: npx tsx scripts/pipeline-e2e.ts
+
+      - name: Auth smoke tests
         run: |
           npx next start -p 3210 &
           for i in $(seq 1 60); do
             if curl -sf -o /dev/null http://127.0.0.1:3210/login; then break; fi
             sleep 1
           done
-          BASE=http://127.0.0.1:3210 node scripts/smoke.mjs
           BASE=http://127.0.0.1:3210 node scripts/demo-login-check.mjs
 
-      - name: Runner CLI syntax
-        run: node --check packages/runner/bin/gantry-runner.mjs

@@ -27,7 +27,7 @@ await db.session.create({
 const cookie = `authjs.session-token=${sessionToken}`;
 
 // 3. every authenticated page must now render
-for (const path of ["/sprint", "/agents", "/runs", "/runners", "/results", "/settings"]) {
+for (const path of ["/sprint", "/agents", "/results", "/settings"]) {
   const res = await fetch(`${BASE}${path}`, { headers: { cookie }, redirect: "manual" });
   const body = res.ok ? await res.text() : "";
   check(`${path} renders for a session cookie`, res.status === 200, `got ${res.status}`);
@@ -40,7 +40,13 @@ await db.session.create({ data: { sessionToken: staleToken, userId: user.id, exp
 r = await fetch(`${BASE}/sprint`, { headers: { cookie: `authjs.session-token=${staleToken}` }, redirect: "manual" });
 check("expired session is rejected", r.status !== 200, `got ${r.status}`);
 
-// 5. a forged token must be rejected
+// 5. the removed runner surface must be gone, not merely unlinked
+for (const gone of ["/runners", "/runs", "/api/runner/claim", "/api/runner/heartbeat"]) {
+  const res = await fetch(`${BASE}${gone}`, { headers: { cookie }, redirect: "manual" });
+  check(`${gone} no longer exists`, res.status === 404, `got ${res.status}`);
+}
+
+// 6. a forged token must be rejected
 r = await fetch(`${BASE}/sprint`, { headers: { cookie: `authjs.session-token=${randomBytes(32).toString("hex")}` }, redirect: "manual" });
 check("forged session token is rejected", r.status !== 200, `got ${r.status}`);
 

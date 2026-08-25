@@ -5,6 +5,7 @@ import { requireWorkspace } from "@/lib/workspace";
 import { PageBar, Pane } from "@/components/page-bar";
 import { Card, CardHeader, CardBody, Pill, Sub } from "@/components/ui";
 import { AGENT_LIST } from "@/lib/agents/registry";
+import { SUB_AGENT_LIST } from "@/lib/agents/pipeline-registry";
 import { agentsAreLive } from "@/lib/agents/runtime";
 
 export const metadata: Metadata = { title: "Agents" };
@@ -12,28 +13,13 @@ export const dynamic = "force-dynamic";
 
 const ICONS: Record<string, React.ReactNode> = {
   "sprint-planner": <path d="M4 6h16M4 12h10M4 18h13" />,
-  "qe-pipelines": <path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5" />,
-  "qe-batch": (
-    <>
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    </>
-  ),
+  "qe-pipeline": <path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5" />,
   "qe-auto-heal": <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" />,
   "batch-heal": <path d="M20 11a8 8 0 1 0-2.7 6M20 4v5h-5M8 12h8M12 8v8" />,
   "qe-insights": <path d="M3 18l5-6 4 4 4-7 5 6M3 21h18" />,
 };
 
-const CHAIN = [
-  ["sprint-planner", "backlog → plan"],
-  ["qe-batch", "plan → n jobs"],
-  ["qe-pipelines", "story → spec"],
-  ["runner", "executing"],
-  ["qe-auto-heal", "failure → patch"],
-  ["batch-heal", "fleet → PR"],
-];
+const CHAIN = SUB_AGENT_LIST.map((a) => [a.id, a.role] as const);
 
 export default async function AgentsPage() {
   const ctx = await requireWorkspace();
@@ -65,11 +51,11 @@ export default async function AgentsPage() {
 
       <Pane>
         <div className="mb-4 max-w-[62ch]">
-          <h3 className="text-[17px]">The six agents</h3>
+          <h3 className="text-[17px]">Top-level agents</h3>
           <Sub className="mt-1.5">
-            Each agent has one job, a typed input, and a typed output. They compose — the output of one
-            is the input of the next — so a sprint walks from backlog to green without a human in the
-            middle unless an agent asks for one.
+            Each has one job, a typed input, and a typed output, produced through a forced tool call
+            so a malformed result never reaches your database. qe-pipeline is itself an orchestrator:
+            it runs the six sub-agents below.
           </Sub>
         </div>
 
@@ -126,7 +112,7 @@ export default async function AgentsPage() {
         </div>
 
         <Card className="mt-4">
-          <CardHeader title="Composition">
+          <CardHeader title="Inside qe-pipeline">
             <Pill tone="idle" dot={false}>read left to right</Pill>
           </CardHeader>
           <CardBody className="blueprint">
@@ -147,6 +133,26 @@ export default async function AgentsPage() {
                 </div>
               ))}
             </div>
+            <ol className="mt-3 grid gap-2.5 border-t border-line-soft pt-3">
+              {SUB_AGENT_LIST.map((a) => (
+                <li key={a.id} className="flex gap-3">
+                  <span className="mt-px w-5 shrink-0 text-right font-mono text-[11px] font-semibold text-muted">
+                    {a.order}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="font-mono text-[12px] font-semibold">{a.id}</span>
+                    <span className="ml-2 text-[11.5px] text-muted">{a.role}</span>
+                    <p className="mt-0.5 text-[12.5px] leading-[1.55] text-ink-2">{a.description}</p>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 border-t border-line-soft pt-3 text-[12.5px] leading-[1.55] text-muted">
+              When the verifier rejects the work, spec-author revises and the verifier re-checks —
+              up to twice — so the pipeline converges instead of stopping at the first objection.
+              A blocking question from clarify stops the chain outright rather than letting a guess
+              flow downstream.
+            </p>
           </CardBody>
         </Card>
       </Pane>

@@ -2,13 +2,13 @@
 
 **Sprint in. Green out.**
 
-Gantry reads your sprint, writes the specs and test assets, runs them on machines you own —
-cloud or the laptop under your desk — and proposes a patch when a spec breaks. Six agents drive
-it end to end; you sign in, plan, and review.
+Gantry reads your **Jira** stories, walks each one through a chain of six sub-agents, and proposes
+**Xray** test cases and a **Bitbucket** branch and pull request. Nothing is written to your systems
+until you approve it.
 
 - **Design prototype:** `docs/index.html` — published at https://chandan180892.github.io/Agentic-Automation/
 - **Stack:** Next.js 16 (App Router, FE + BE in one deployable), Auth.js v5, Prisma, Anthropic SDK
-- **Runner:** `packages/runner` — an outbound Node CLI, no inbound ports
+- **Integrations:** Jira Cloud, Xray Cloud, Bitbucket Cloud
 
 ---
 
@@ -17,30 +17,58 @@ it end to end; you sign in, plan, and review.
 | Agent | Role | In → out |
 |---|---|---|
 | `sprint-planner` | Planning | backlog → sprint plan |
-| `qe-pipelines` | Generation, one story | story → spec + assets |
-| `qe-batch` | Generation, parallel | sprint plan → *n* jobs |
+| `qe-pipeline` | Orchestrator | Jira story → Xray tests + Bitbucket PR |
 | `qe-auto-heal` | Repair, one spec | failure → verified patch |
 | `batch-heal` | Repair, fleet | *n* failures → one PR |
 | `qe-insights` | Analysis | run history → signals |
 
-Every agent has a typed input, a typed output, and a system prompt built on three house rules:
+### Inside `qe-pipeline`
 
-1. **Never invent a requirement.** Missing acceptance criteria get drafted *and flagged*, never
-   guessed at silently.
+One Jira story walks six sub-agents, each with a typed input, a typed output, and one job:
+
+| # | Sub-agent | What it does |
+|---|---|---|
+| 1 | `story-analyzer` | Turns the story into testable behaviours; separates genuine ambiguity from the merely unstated |
+| 2 | `clarify` | Writes one answerable question per ambiguity, each with a suggested default. **Stops the pipeline** when a wrong guess would test the wrong thing |
+| 3 | `asset-resolver` | Reads the Bitbucket repo to find fixtures and page objects that already exist, so the suite is extended rather than duplicated |
+| 4 | `spec-author` | Writes complete runnable files against the repo's own conventions, plus Xray cases with real steps and expected results |
+| 5 | `verifier` | Maps every acceptance criterion to the test covering it, and hunts placeholders, bad imports and assertions that cannot fail |
+| 6 | `reviewer` | The gate. Approves, or sends the work back — and writes the pull request |
+
+**It converges rather than stalling.** When the verifier objects, spec-author revises and the
+verifier re-checks, up to twice. When `clarify` hits a blocking ambiguity the run stops and says
+what it needs, instead of guessing.
+
+Every stage inherits three house rules:
+
+1. **Never invent a requirement.** Missing criteria become questions, never quiet guesses.
 2. **Never weaken a test to make it pass.** Skipping, quarantining, or loosening an assertion is
-   not a fix. If the application is wrong, the agent says the application is wrong.
-3. **Be specific.** Name the file, the selector, the criterion, the commit.
+   not a fix.
+3. **Be specific.** Name the criterion, the file, the selector.
 
-Outputs are produced through a forced tool call, so a result either matches the agent's schema or
-is rejected before it reaches your database. `scripts/agents-check.ts` asserts all of this,
-including that `qe-auto-heal` patches a renamed selector but **refuses** to rewrite a correct
-assertion.
+Outputs come back through a forced tool call, so a result either matches the sub-agent's schema
+or is rejected before it reaches your database.
+
+### Nothing is written without approval
+
+A run produces **proposals**, not writes. Approving one in the UI is the only code path in the
+app that mutates Jira, Xray or Bitbucket:
+
+| Proposal | What approving it does |
+|---|---|
+| `jira-comment` | Posts `clarify`'s questions on the story |
+| `xray-tests` | Creates the Xray test cases and records their keys |
+| `bitbucket-branch` | Commits the files to a branch and opens the pull request |
 
 ### Simulator mode
 
-With no `ANTHROPIC_API_KEY` set, each agent falls back to a deterministic built-in simulator and
-every result is labelled `simulated` all the way to the UI. Storage, jobs, runners, and review are
-still real, so a fresh clone is fully explorable before anyone configures a key.
+With no `ANTHROPIC_API_KEY` set, every agent and sub-agent falls back to a deterministic built-in
+simulator, and the result is labelled `simulated` all the way to the UI. Storage, stages, proposals
+and review are still real, so a fresh clone is fully explorable before anyone configures a key.
+
+Each Atlassian client degrades the same way: unconfigured, the pipeline still runs and the stage
+log says which system it could not reach — `asset-resolver`, for instance, plans assets without
+the repo's history and says so, rather than pretending it looked.
 
 ### Demo sign-in
 
@@ -105,32 +133,30 @@ Sessions are database-backed httpOnly cookies. Gantry stores no passwords and ne
 
 ---
 
-## Connect a runner
+## Connect Jira, Xray and Bitbucket
 
-Gantry executes nothing on its own machines. Register a runner in **Runners**, copy the token
-(shown once — only its hash is stored), and start it wherever you want the work to happen:
+Credentials go in the environment; the per-workspace coordinates (project keys, repo) go in
+**Settings** in the app.
 
 ```bash
-npx @gantry/runner connect \
-  --url https://your-gantry-url \
-  --token gnt_rnr_… \
-  --name ci-worker-1 --slots 4 \
-  --workdir ./e2e --exec "npx playwright test"
+# Jira Cloud — id.atlassian.com/manage-profile/security/api-tokens
+JIRA_BASE_URL="https://your-site.atlassian.net"
+JIRA_EMAIL="you@example.com"
+JIRA_API_TOKEN="..."
+
+# Xray Cloud — Jira → Apps → Xray → API Keys
+XRAY_CLIENT_ID="..."
+XRAY_CLIENT_SECRET="..."
+
+# Bitbucket Cloud — Personal settings → App passwords
+# Scopes: repository:read, repository:write, pullrequest:write
+BITBUCKET_USERNAME="..."
+BITBUCKET_APP_PASSWORD="..."
 ```
 
-From this repo, without publishing: `npm run runner -- connect --url … --token …`
-
-The runner dials **out** over HTTPS and polls for work. No inbound port, no VPN, no SSH key held
-by the server — so the same command works on a cloud CI box and on a laptop behind NAT.
-
-For each job it claims, the runner asks Gantry for the generated files (the model key stays on the
-server), writes them under `--workdir`, runs `--exec`, streams the output back into the run view
-live, and reports the outcome with whatever it produced. Omit `--exec` and it writes the files
-without executing them. Add `--once` to take a single job and exit, which is what you want in CI.
-
-Useful flags: `--slots` (concurrency), `--poll-ms`, `--workdir`, `--once`, `--help`.
-
----
+Acceptance criteria have no standard Jira field, so the importer checks the common custom fields
+first and falls back to parsing an "Acceptance Criteria" section out of the description — rather
+than reporting that a story has none.
 
 ## Deploy the app
 
@@ -203,46 +229,48 @@ fail with a redirect mismatch.
 ## Tests
 
 ```bash
-npm run test:agents    # every agent's contract, through the real runtime
-npm run test:smoke     # runner protocol against a running server
-npm run test:auth      # session handling across every authenticated page
-npx tsc --noEmit       # typecheck
+npm run test:agents     # top-level agent contracts
+npm run test:pipeline   # all six sub-agents, including the revision loop
+npm run test:e2e        # the orchestrator against a real database
+npm run test:auth       # session handling across every authenticated page
+npx tsc --noEmit        # typecheck
 ```
 
-`test:smoke` and `test:auth` need the app running (`npm start` on port 3210, or set `BASE`).
-Between them they cover runner token rejection, single-claim-under-race, log streaming, run
-auto-close, cross-workspace isolation, and — on the auth side — that every authenticated page
-requires a session and that expired and forged session tokens are refused. CI runs all of it on
-every push.
+`test:auth` needs the app running (`npm start` on port 3210, or set `BASE`).
+
+The suites assert the behaviours that make the pipeline trustworthy, not just that it runs:
+`story-analyzer` refuses to call an unspecified story testable, `clarify` blocks rather than
+guessing, `asset-resolver` never recreates what it reuses, `verifier` reports uncovered criteria
+honestly, `reviewer` refuses to publish uncovered work, a revision closes the gap the verifier
+found, and an end-to-end run proposes publications **without publishing any of them**. CI runs all
+of it on every push.
 
 ---
 
-## How a story becomes green
+## How a story becomes a test suite
 
 ```
-sprint-planner → qe-batch → qe-pipelines → your runner → qe-auto-heal → batch-heal
-   backlog         n jobs      spec+assets     execution      patch          one PR
+Jira story
+   └─ story-analyzer → clarify → asset-resolver → spec-author → verifier → reviewer
+                          │                            ↑           │
+                     blocks & asks                     └───────────┘
+                                                     revises, up to 2×
+   └─ proposals → you approve → Xray test cases + Bitbucket branch & PR
 ```
 
-1. **Plan.** `sprint-planner` sizes what has no estimate, orders by dependency, commits to
-   capacity, and drafts acceptance criteria where they are missing — flagged for review.
-2. **Generate.** `qe-batch` shards the committed stories across your available runner slots and
-   queues one job each. A single story goes through `qe-pipelines` directly instead.
-3. **Execute.** Your runners claim jobs, write the files, run the suite, and stream logs back.
-4. **Heal.** A failure goes to `qe-auto-heal`, which patches selector, timing, and data drift —
-   and refuses assertion rewrites. When one change breaks many specs, `batch-heal` groups them by
-   root cause and opens a single PR with only the ones that went green.
-
----
+1. **Import.** Stories come from Jira, with acceptance criteria and story points.
+2. **Plan.** `sprint-planner` sizes what has no estimate and commits to capacity.
+3. **Pipeline.** Each committed story walks the six sub-agents above.
+4. **Approve.** The reviewer's approval produces proposals; yours publishes them.
 
 ## Repository layout
 
 ```
-src/app/(app)/          authenticated screens — sprint, agents, runs, runners, results, settings
-src/app/api/runner/     the outbound runner protocol: heartbeat, claim, generate, log, complete
-src/lib/agents/         registry (prompts + simulators), schemas, runtime
-packages/runner/        the runner CLI
-prisma/schema.prisma    workspaces, sprints, stories, runs, jobs, assets, events, runners
-docs/index.html         the design prototype this app was built from (served by Pages)
-scripts/                agent contract checks and the runner protocol smoke test
+src/app/(app)/              authenticated screens — sprint, agents, runs, results, settings
+src/lib/agents/             top-level registry, runtime
+src/lib/agents/pipeline*.ts the six sub-agents and the orchestrator that runs them
+src/lib/atlassian/          Jira, Xray and Bitbucket Cloud clients
+prisma/schema.prisma        workspaces, sprints, stories, runs, stages, test cases, publications
+docs/index.html             the design prototype (served by GitHub Pages)
+scripts/                    agent, sub-agent, orchestrator and auth suites
 ```

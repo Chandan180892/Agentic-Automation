@@ -70,8 +70,15 @@ model Workspace {
   createdAt DateTime     @default(now())
   members   Membership[]
   sprints   Sprint[]
-  runners   Runner[]
   runs      Run[]
+
+  // Atlassian Cloud wiring. Credentials live in env; these are the coordinates.
+  jiraProjectKey      String @default("")
+  xrayProjectKey      String @default("")
+  bitbucketWorkspace  String @default("")
+  bitbucketRepo       String @default("")
+  defaultBranch       String @default("main")
+  testFramework       String @default("playwright")
 }
 
 model Membership {
@@ -107,7 +114,10 @@ model Sprint {
 model Story {
   id                 String   @id @default(cuid())
   sprintId           String
-  key                String
+  key                String // the Jira issue key, e.g. PAY-812
+  jiraId             String   @default("")
+  jiraUrl            String   @default("")
+  issueType          String   @default("Story")
   title              String
   description        String   @default("")
   acceptanceCriteria String   @default("[]") // JSON array of strings
@@ -117,8 +127,9 @@ model Story {
   tagsJson           String   @default("[]")
   committed          Boolean  @default(true)
   createdAt          DateTime @default(now())
-  sprint             Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
-  jobs               Job[]
+  sprint             Sprint     @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  testCases          TestCase[]
+  runs               Run[]
 
   @@unique([sprintId, key])
 }
@@ -129,9 +140,10 @@ model Run {
   id          String    @id @default(cuid())
   workspaceId String
   sprintId    String?
-  agent       String // sprint-planner | qe-pipelines | qe-batch | qe-auto-heal | batch-heal | qe-insights
+  storyId     String?
+  agent       String // qe-pipeline | sprint-planner | qe-auto-heal | batch-heal | qe-insights
   mode        String    @default("single") // single | batch
-  status      String    @default("queued") // queued | running | succeeded | failed | needs_review
+  status      String    @default("queued") // queued | running | succeeded | failed | needs_review | blocked
   inputJson   String    @default("{}")
   outputJson  String?
   error       String?
@@ -139,75 +151,88 @@ model Run {
   finishedAt  DateTime?
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   sprint      Sprint?   @relation(fields: [sprintId], references: [id], onDelete: SetNull)
-  jobs        Job[]
+  story       Story?    @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  stages      Stage[]
   events      Event[]
+  assets      Asset[]
+  testCases   TestCase[]
+  publications Publication[]
+
+  @@index([workspaceId, startedAt])
 }
 
-model Job {
+/// One sub-agent's turn inside a pipeline run. The chain is ordered, and a stage that
+/// blocks stops the ones after it rather than letting a guess flow downstream.
+model Stage {
   id         String    @id @default(cuid())
   runId      String
-  storyId    String?
-  runnerId   String?
-  kind       String // spec-gen | asset-gen | execute | heal
-  status     String    @default("queued") // queued | claimed | running | passed | failed | cancelled
-  payloadJson String   @default("{}")
-  resultJson String?
-  attempts   Int       @default(0)
-  createdAt  DateTime  @default(now())
-  claimedAt  DateTime?
+  agent      String // story-analyzer | clarify | asset-resolver | spec-author | verifier | reviewer
+  order      Int
+  status     String    @default("pending") // pending | running | passed | blocked | failed | skipped
+  summary    String    @default("")
+  outputJson String?
+  startedAt  DateTime?
   finishedAt DateTime?
   run        Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
-  story      Story?    @relation(fields: [storyId], references: [id], onDelete: SetNull)
-  runner     Runner?   @relation(fields: [runnerId], references: [id], onDelete: SetNull)
-  assets     Asset[]
-  events     Event[]
 
-  @@index([status, createdAt])
+  @@unique([runId, order])
+}
+
+/// An Xray test case the pipeline proposes for a story.
+model TestCase {
+  id           String   @id @default(cuid())
+  runId        String
+  storyId      String?
+  summary      String
+  testType     String   @default("Manual") // Manual | Cucumber | Generic
+  priority     String   @default("Medium")
+  stepsJson    String   @default("[]") // [{action, data, expected}]
+  gherkin      String   @default("")
+  labelsJson   String   @default("[]")
+  criterion    String   @default("") // the acceptance criterion it covers
+  xrayKey      String   @default("") // filled in once published
+  published    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  run          Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  story        Story?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
+}
+
+/// What the pipeline wants to write to Jira, Xray or Bitbucket. Nothing leaves Gantry
+/// until someone approves the publication here.
+model Publication {
+  id          String    @id @default(cuid())
+  runId       String
+  target      String // jira-comment | xray-tests | bitbucket-branch
+  status      String    @default("proposed") // proposed | approved | published | failed
+  payloadJson String    @default("{}")
+  resultJson  String?
+  error       String?
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  run         Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
 }
 
 model Asset {
   id        String   @id @default(cuid())
-  jobId     String
+  runId     String
   path      String
   kind      String // spec | fixture | pageobject | data | report | patch
   content   String
+  reused    Boolean  @default(false) // asset-resolver found it already in the repo
   bytes     Int      @default(0)
   createdAt DateTime @default(now())
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
 }
 
 model Event {
   id      String   @id @default(cuid())
   runId   String
-  jobId   String?
+  stage   String   @default("")
   ts      DateTime @default(now())
   level   String   @default("info") // info | ok | warn | error
   source  String   @default("system")
   message String
   run     Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
-  job     Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@index([runId, ts])
-}
-
-// ---------------------------------------------------------------- Runners --
-
-model Runner {
-  id          String    @id @default(cuid())
-  workspaceId String
-  name        String
-  location    String    @default("")
-  kind        String    @default("cloud") // cloud | local
-  slots       Int       @default(2)
-  activeJobs  Int       @default(0)
-  status      String    @default("offline") // online | busy | offline
-  version     String    @default("")
-  tokenHash   String    @unique
-  tokenHint   String    @default("")
-  lastSeenAt  DateTime?
-  createdAt   DateTime  @default(now())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  jobs        Job[]
-
-  @@unique([workspaceId, name])
 }

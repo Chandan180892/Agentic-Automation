@@ -8,9 +8,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!ctx) redirect("/login");
   const { session, workspace } = ctx;
 
-  const [agentCount, runnerCount, liveRuns, sprint] = await Promise.all([
-    Promise.resolve(6),
-    db.runner.count({ where: { workspaceId: workspace.id } }),
+  const [agentCount, liveRuns, sprint] = await Promise.all([
+    Promise.resolve(5),
     db.run.count({ where: { workspaceId: workspace.id, status: "running" } }),
     db.sprint.findFirst({
       where: { workspaceId: workspace.id },
@@ -32,7 +31,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           counts={{
             sprint: sprint?.name ?? "none",
             agents: agentCount,
-            runners: runnerCount,
             live: liveRuns,
           }}
         />

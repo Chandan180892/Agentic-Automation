@@ -5,6 +5,7 @@
  */
 import { invokeAgent, agentsAreLive } from "../src/lib/agents/runtime";
 import { AGENT_LIST } from "../src/lib/agents/registry";
+import { SUB_AGENT_LIST } from "../src/lib/agents/pipeline-registry";
 
 const results: string[] = [];
 let failures = 0;
@@ -24,7 +25,8 @@ const STORY = {
 
 async function main() {
   console.log(`mode: ${agentsAreLive() ? "LIVE (calling the model)" : "SIMULATED (no API key)"}\n`);
-  check("registry exposes six agents", AGENT_LIST.length === 6, `${AGENT_LIST.length}`);
+  check("registry exposes the five top-level agents", AGENT_LIST.length === 5, `${AGENT_LIST.length}`);
+  check("pipeline exposes six sub-agents", SUB_AGENT_LIST.length === 6, `${SUB_AGENT_LIST.length}`);
 
   // sprint-planner
   const plan = await invokeAgent<{ commitment: unknown[]; totalPoints: number; draftedAcceptanceCriteria: unknown[] }>(
@@ -42,24 +44,6 @@ async function main() {
     "sprint-planner drafts missing acceptance criteria",
     plan.output.draftedAcceptanceCriteria.length >= 1
   );
-
-  // qe-pipelines
-  const specs = await invokeAgent<{ assets: { path: string; content: string }[]; scenarios: unknown[] }>(
-    "qe-pipelines",
-    { story: STORY, framework: "playwright", language: "typescript" }
-  );
-  check("qe-pipelines produces scenarios", specs.output.scenarios.length >= 1);
-  check("qe-pipelines produces a spec file", specs.output.assets.some((a) => a.path.endsWith(".spec.ts")));
-  check("generated spec is not empty", specs.output.assets.every((a) => a.content.length > 20));
-
-  // qe-batch
-  const batch = await invokeAgent<{ shards: { storyKeys: string[] }[]; order: string[] }>("qe-batch", {
-    sprintName: "Sprint 24",
-    stories: [STORY, { key: "PAY-806", title: "Retry auth", description: "", acceptanceCriteria: ["retries once"], points: 3 }],
-    availableSlots: 2,
-  });
-  const sharded = batch.output.shards.flatMap((s) => s.storyKeys);
-  check("qe-batch shards every story exactly once", sharded.length === 2 && new Set(sharded).size === 2, sharded.join(","));
 
   // qe-auto-heal — a selector failure is safe to patch
   const healSelector = await invokeAgent<{ shouldPatch: boolean; category: string }>("qe-auto-heal", {

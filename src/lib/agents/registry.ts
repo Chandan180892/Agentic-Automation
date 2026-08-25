@@ -114,13 +114,13 @@ Method:
   }),
 
   // ------------------------------------------------------------------------
-  "qe-pipelines": defineAgent({
-    id: "qe-pipelines",
-    name: "QE pipelines",
-    role: "Generation · single story",
+  "qe-pipeline": defineAgent({
+    id: "qe-pipeline",
+    name: "QE pipeline",
+    role: "Orchestrator · six sub-agents",
     description:
-      "Takes one story end to end: acceptance criteria to spec file, fixtures, page objects, and test data. Every scenario traces back to a criterion.",
-    io: ["story", "spec + assets"],
+      "Walks one Jira story through story-analyzer, clarify, asset-resolver, spec-author, verifier and reviewer. Revises its own work when the verifier objects, and stops rather than guessing when the story is genuinely ambiguous.",
+    io: ["Jira story", "Xray tests + Bitbucket PR"],
     mode: "single",
     input: S.QePipelinesIn,
     output: S.QePipelinesOut,
@@ -196,65 +196,6 @@ ${scenarios
         notes: i.story.acceptanceCriteria.length
           ? ""
           : "This story arrived without acceptance criteria. The specs are structural only — review before trusting them.",
-      };
-    },
-  }),
-
-  // ------------------------------------------------------------------------
-  "qe-batch": defineAgent({
-    id: "qe-batch",
-    name: "QE batch",
-    role: "Generation · parallel",
-    description:
-      "Fans a whole sprint out at once. Shards stories across every idle runner, dedupes fixtures they share, and merges the result into one changeset.",
-    io: ["sprint plan", "n × specs"],
-    mode: "batch",
-    input: S.QeBatchIn,
-    output: S.QeBatchOut,
-    tool: "submit_batch_plan",
-    toolDescription: "Return the shard plan for parallel spec generation.",
-    maxTokens: 4000,
-    system: `${HOUSE_RULES}
-
-You are qe-batch. You plan how a sprint's worth of stories is generated in parallel.
-
-Method:
-- Order stories so that anything another story depends on is generated first.
-- Split into shards of roughly equal cost, never more shards than available slots.
-- Stories that will clearly share test data or page objects go in the same shard, and the
-  shared file is listed in sharedFixtures so it is written once rather than n times.
-- Estimate minutes per shard honestly; a shard that dwarfs the others is a bad split.`,
-    prompt: (i) =>
-      [
-        `Sprint: ${i.sprintName}`,
-        `Available runner slots: ${i.availableSlots}`,
-        `Framework: ${i.framework}`,
-        ``,
-        `Stories:`,
-        ...i.stories.map(
-          (s) => `- ${s.key} [${s.points ?? "?"}] ${s.title} :: ${s.description || "(no description)"}`
-        ),
-      ].join("\n"),
-    simulate: (i) => {
-      const slots = Math.max(1, Math.min(i.availableSlots, i.stories.length));
-      const shards = Array.from({ length: slots }, (_, n) => ({
-        shard: n + 1,
-        storyKeys: i.stories.filter((_, k) => k % slots === n).map((s) => s.key),
-        estimatedMinutes: 0,
-      })).map((sh) => ({ ...sh, estimatedMinutes: Math.max(2, sh.storyKeys.length * 3) }));
-      return {
-        summary: `Split ${i.stories.length} stories across ${slots} shards, dependency order preserved.`,
-        shards,
-        sharedFixtures: i.stories.length > 2
-          ? [
-              {
-                path: "fixtures/testUsers.ts",
-                reason: "Several stories authenticate as the same personas.",
-                usedBy: i.stories.slice(0, 3).map((s) => s.key),
-              },
-            ]
-          : [],
-        order: i.stories.map((s) => s.key),
       };
     },
   }),

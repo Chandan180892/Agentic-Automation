@@ -9,11 +9,11 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "test:smoke": "node --env-file=.env scripts/smoke.mjs",
     "test:agents": "tsx --env-file=.env scripts/agents-check.ts",
     "db:postgres": "node -e \"const f='prisma/schema.prisma',fs=require('fs');fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/provider = \\\"sqlite\\\"/,'provider = \\\"postgresql\\\"'));console.log('schema switched to postgresql — set DATABASE_URL and run: npm run db:push')\"",
-    "runner": "node packages/runner/bin/gantry-runner.mjs",
-    "test:auth": "node --env-file=.env scripts/demo-login-check.mjs"
+    "test:auth": "node --env-file=.env scripts/demo-login-check.mjs",
+    "test:pipeline": "tsx --env-file=.env scripts/pipeline-check.ts",
+    "test:e2e": "tsx --env-file=.env scripts/pipeline-e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
