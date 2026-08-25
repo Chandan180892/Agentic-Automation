@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.env
+.env*.local
+*.db
+docs
+scripts
+packages/runner/node_modules

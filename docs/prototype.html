@@ -1,0 +1,931 @@
+<title>Gantry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#EDF0F5; --surface:#FFFFFF; --surface-2:#F6F8FB; --surface-3:#EAEFF6;
+  --ink:#0D1526; --ink-2:#3C4A61; --muted:#6B7C96;
+  --line:#D6DDE8; --line-soft:#E6EBF2;
+  --accent:#1B44C8; --accent-ink:#FFFFFF; --accent-soft:#E4EAFC; --accent-line:#B9C7F4;
+  --pass:#0A7C4A; --pass-soft:#DEF3E8;
+  --fail:#B02318; --fail-soft:#FBE4E1;
+  --heal:#A85C08; --heal-soft:#FBEDD9;
+  --live:#0B6E8C; --live-soft:#DBF0F7;
+  --grid:rgba(27,68,200,.07);
+  --shadow:0 1px 2px rgba(13,21,38,.06),0 10px 28px -14px rgba(13,21,38,.22);
+  --shadow-lift:0 2px 4px rgba(13,21,38,.07),0 18px 44px -18px rgba(13,21,38,.30);
+  --r:10px;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#080C14; --surface:#0F1725; --surface-2:#131D2E; --surface-3:#182337;
+    --ink:#E8EEF9; --ink-2:#B7C4D8; --muted:#7F91AB;
+    --line:#233149; --line-soft:#1A2437;
+    --accent:#7A9BFF; --accent-ink:#08101F; --accent-soft:#17243F; --accent-line:#2F4574;
+    --pass:#43D08D; --pass-soft:#0E2A20;
+    --fail:#FF8E7E; --fail-soft:#2D1613;
+    --heal:#F0B256; --heal-soft:#2B1E0D;
+    --live:#5FC8EA; --live-soft:#0B2632;
+    --grid:rgba(122,155,255,.07);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.7);
+    --shadow-lift:0 2px 4px rgba(0,0,0,.45),0 18px 44px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#080C14; --surface:#0F1725; --surface-2:#131D2E; --surface-3:#182337;
+  --ink:#E8EEF9; --ink-2:#B7C4D8; --muted:#7F91AB;
+  --line:#233149; --line-soft:#1A2437;
+  --accent:#7A9BFF; --accent-ink:#08101F; --accent-soft:#17243F; --accent-line:#2F4574;
+  --pass:#43D08D; --pass-soft:#0E2A20;
+  --fail:#FF8E7E; --fail-soft:#2D1613;
+  --heal:#F0B256; --heal-soft:#2B1E0D;
+  --live:#5FC8EA; --live-soft:#0B2632;
+  --grid:rgba(122,155,255,.07);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.7);
+  --shadow-lift:0 2px 4px rgba(0,0,0,.45),0 18px 44px -18px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--f-body); font-size:14px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--f-display); margin:0; letter-spacing:-.02em; text-wrap:balance; font-weight:700}
+p{margin:0}
+button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+a{color:var(--accent);text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1320px;margin:0 auto;padding:20px 20px 56px}
+.frame{
+  border:1px solid var(--line); border-radius:16px; overflow:hidden;
+  background:var(--surface); box-shadow:var(--shadow-lift);
+  display:grid; grid-template-columns:238px 1fr; min-height:760px;
+}
+/* rail */
+.rail{
+  background:var(--surface-2); border-right:1px solid var(--line);
+  display:flex; flex-direction:column; gap:4px; padding:16px 12px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 18px}
+.mark{
+  width:30px;height:30px;border-radius:8px;flex:none;
+  background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;font-family:var(--f-display);font-weight:800;font-size:15px;
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,.18);
+}
+.brand b{font-family:var(--f-display);font-size:17px;letter-spacing:-.03em;display:block;line-height:1.1}
+.brand span{font-size:10.5px;color:var(--muted);letter-spacing:.11em;text-transform:uppercase;font-weight:600}
+.rail-label{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:14px 10px 6px}
+.navbtn{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:8px 10px;border-radius:8px;color:var(--ink-2);font-weight:500;font-size:13.5px;
+  text-align:left;transition:background .13s,color .13s;
+}
+.navbtn:hover{background:var(--surface-3);color:var(--ink)}
+.navbtn[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.navbtn .ic{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.navbtn .tick{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--muted);font-weight:500}
+.rail-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:12px}
+.who{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px}
+.who:hover{background:var(--surface-3)}
+.av{width:26px;height:26px;border-radius:50%;flex:none;background:linear-gradient(140deg,var(--accent),var(--live));color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+.who .n{font-size:12.5px;font-weight:600;line-height:1.25}
+.who .e{font-size:11px;color:var(--muted);line-height:1.25}
+
+/* main */
+.main{display:flex;flex-direction:column;min-width:0;background:var(--surface)}
+.bar{
+  display:flex;align-items:center;gap:14px;padding:14px 22px;
+  border-bottom:1px solid var(--line);background:var(--surface);
+}
+.crumb{font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+.crumb b{color:var(--ink-2);font-weight:500}
+.bar h2{font-size:16px;letter-spacing:-.025em}
+.bar .sp{margin-left:auto}
+.pane{padding:22px;overflow:auto;flex:1;min-height:0}
+
+/* ---------- primitives ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.card.flat{box-shadow:none;background:var(--surface-2)}
+.card-h{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line-soft)}
+.card-h h3{font-size:13.5px;letter-spacing:-.01em}
+.card-h .sp{margin-left:auto}
+.card-b{padding:16px}
+.blueprint{
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:22px 22px;
+}
+.pill{
+  display:inline-flex;align-items:center;gap:5px;padding:2.5px 8px;border-radius:999px;
+  font-size:11px;font-weight:600;letter-spacing:.01em;border:1px solid transparent;white-space:nowrap;
+}
+.pill .dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
+.p-pass{background:var(--pass-soft);color:var(--pass);border-color:color-mix(in srgb,var(--pass) 26%,transparent)}
+.p-fail{background:var(--fail-soft);color:var(--fail);border-color:color-mix(in srgb,var(--fail) 26%,transparent)}
+.p-heal{background:var(--heal-soft);color:var(--heal);border-color:color-mix(in srgb,var(--heal) 26%,transparent)}
+.p-live{background:var(--live-soft);color:var(--live);border-color:color-mix(in srgb,var(--live) 26%,transparent)}
+.p-idle{background:var(--surface-3);color:var(--muted);border-color:var(--line)}
+.p-acc{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:8px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  font-size:12.5px;font-weight:600;transition:background .13s,border-color .13s,transform .08s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent-line)}
+.btn:active{transform:translateY(1px)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.sm{padding:5px 10px;font-size:11.5px;border-radius:7px}
+.btn .ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.grid{display:grid;gap:16px}
+.lbl{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.sub{font-size:12.5px;color:var(--muted);line-height:1.5}
+.hr{height:1px;background:var(--line-soft);border:0;margin:0}
+.bar-track{height:5px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.bar-fill{height:100%;border-radius:999px;background:var(--accent);transition:width .5s cubic-bezier(.4,0,.2,1)}
+
+/* ---------- sign in ---------- */
+.signin{display:grid;grid-template-columns:1.05fr .95fr;min-height:760px}
+.si-left{
+  background:var(--surface-2);border-right:1px solid var(--line);
+  padding:52px 48px;display:flex;flex-direction:column;
+}
+.si-left h1{font-size:40px;line-height:1.04;letter-spacing:-.035em;margin:26px 0 16px;max-width:13ch}
+.si-left h1 em{font-style:normal;color:var(--accent)}
+.si-lede{font-size:15px;color:var(--ink-2);max-width:46ch;line-height:1.6}
+.chain{margin-top:auto;display:flex;flex-direction:column;gap:0}
+.chain-row{display:flex;align-items:center;gap:13px;padding:11px 0}
+.chain-ic{
+  width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--line);
+}
+.chain-ic svg{width:15px;height:15px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chain-row .t{font-size:13px;font-weight:600}
+.chain-row .d{font-size:12px;color:var(--muted)}
+.chain-line{width:1px;height:12px;background:var(--line);margin-left:15px}
+.si-right{padding:52px 48px;display:flex;flex-direction:column;justify-content:center;gap:22px}
+.si-right h2{font-size:24px;letter-spacing:-.03em}
+.oauth{
+  display:flex;align-items:center;gap:11px;width:100%;padding:12px 15px;border-radius:10px;
+  border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:14px;
+  transition:border-color .14s,background .14s,box-shadow .14s;
+}
+.oauth:hover{border-color:var(--accent-line);background:var(--surface-2);box-shadow:var(--shadow)}
+.oauth svg{width:19px;height:19px;flex:none}
+.oauth .go{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+.fine{font-size:11.5px;color:var(--muted);line-height:1.6}
+
+/* ---------- planner ---------- */
+.split{display:grid;grid-template-columns:1fr 372px;gap:16px;align-items:start}
+.story{
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;
+  padding:13px 15px;border-bottom:1px solid var(--line-soft);transition:background .13s;
+}
+.story:last-child{border-bottom:0}
+.story:hover{background:var(--surface-2)}
+.ck{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line);margin-top:3px;flex:none;display:grid;place-items:center}
+.ck[data-on="1"]{background:var(--accent);border-color:var(--accent)}
+.ck[data-on="1"]::after{content:"";width:8px;height:4.5px;border-left:1.8px solid var(--accent-ink);border-bottom:1.8px solid var(--accent-ink);transform:rotate(-45deg) translate(1px,-1px)}
+.story .key{font-family:var(--f-mono);font-size:11px;color:var(--muted);font-weight:500}
+.story .ttl{font-size:13.5px;font-weight:600;line-height:1.4;margin-top:1px}
+.story .meta{display:flex;gap:7px;margin-top:7px;flex-wrap:wrap}
+.pts{
+  font-family:var(--f-mono);font-size:12.5px;font-weight:600;min-width:30px;text-align:right;
+  color:var(--ink-2);padding-top:2px;
+}
+.cap{display:flex;flex-direction:column;gap:9px}
+.cap-row{display:flex;justify-content:space-between;font-size:12.5px}
+.cap-row b{font-family:var(--f-mono);font-weight:600}
+.agent-out{
+  background:var(--surface-2);border:1px solid var(--line-soft);border-left:2px solid var(--accent);
+  border-radius:0 8px 8px 0;padding:12px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.6;
+}
+.agent-out strong{color:var(--ink);font-weight:600}
+
+/* ---------- agents ---------- */
+.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(288px,1fr));gap:14px}
+.agent{
+  border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
+  padding:16px;display:flex;flex-direction:column;gap:11px;transition:border-color .15s,box-shadow .15s,transform .15s;
+}
+.agent:hover{border-color:var(--accent-line);box-shadow:var(--shadow);transform:translateY(-1px)}
+.agent-top{display:flex;align-items:flex-start;gap:11px}
+.agent-mk{
+  width:32px;height:32px;border-radius:8px;flex:none;display:grid;place-items:center;
+  background:var(--accent-soft);border:1px solid var(--accent-line);
+}
+.agent-mk svg{width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.agent h4{font-family:var(--f-mono);font-size:12.5px;font-weight:600;letter-spacing:-.01em}
+.agent .role{font-size:11px;color:var(--muted);margin-top:1px}
+.agent .desc{font-size:12.5px;color:var(--ink-2);line-height:1.55}
+.io{display:flex;gap:8px;align-items:center;font-family:var(--f-mono);font-size:10.5px;color:var(--muted)}
+.io .tag{background:var(--surface-3);border:1px solid var(--line-soft);border-radius:5px;padding:2px 6px}
+.io .ar{color:var(--accent-line)}
+.agent-foot{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:11px;border-top:1px solid var(--line-soft)}
+.agent-foot .runs{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-left:auto}
+
+/* ---------- pipeline ---------- */
+.flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 2px 12px}
+.node{
+  flex:none;width:158px;border:1px solid var(--line);border-radius:9px;background:var(--surface);
+  padding:11px 12px;display:flex;flex-direction:column;gap:7px;position:relative;
+}
+.node[data-s="run"]{border-color:color-mix(in srgb,var(--live) 45%,transparent);box-shadow:0 0 0 3px var(--live-soft)}
+.node[data-s="done"]{border-color:color-mix(in srgb,var(--pass) 32%,transparent)}
+.node[data-s="wait"]{opacity:.55}
+.node .nm{font-family:var(--f-mono);font-size:11px;font-weight:600}
+.node .st{font-size:11px;color:var(--muted)}
+.node .spark{height:3px;border-radius:2px;background:var(--surface-3);overflow:hidden}
+.node .spark i{display:block;height:100%;background:var(--live);width:0;transition:width .4s linear}
+.node[data-s="done"] .spark i{background:var(--pass);width:100%}
+.link{flex:none;width:26px;display:grid;place-items:center}
+.link svg{width:26px;height:12px;stroke:var(--line);stroke-width:1.6;fill:none}
+.link[data-on="1"] svg{stroke:var(--accent)}
+.term{
+  background:#0A1120;border:1px solid var(--line);border-radius:9px;overflow:hidden;
+}
+.term-h{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.03)}
+.term-h .lbl{color:#7E90AC}
+.term-h .sp{margin-left:auto}
+.term-b{
+  font-family:var(--f-mono);font-size:11.5px;line-height:1.75;padding:12px 14px;
+  height:284px;overflow:auto;color:#C6D3E6;
+}
+.term-b .ln{display:flex;gap:10px;white-space:pre-wrap;word-break:break-word}
+.term-b .ts{color:#54657F;flex:none}
+.term-b .ag{color:#8CA9FF;flex:none;font-weight:500}
+.term-b .ok{color:#4FD494}
+.term-b .er{color:#FF9182}
+.term-b .wn{color:#F2B65E}
+.term-b .dim{color:#7E90AC}
+.cursor{display:inline-block;width:7px;height:13px;background:#8CA9FF;vertical-align:-2px;animation:blink 1.05s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.asset{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line-soft);
+  border-radius:8px;background:var(--surface-2);
+}
+.asset svg{width:15px;height:15px;flex:none;stroke:var(--muted);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.asset .p{font-family:var(--f-mono);font-size:11.5px;font-weight:500}
+.asset .z{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+
+/* ---------- runners ---------- */
+.rn{display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line-soft)}
+.rn:last-child{border-bottom:0}
+.beat{width:9px;height:9px;border-radius:50%;flex:none;position:relative}
+.beat[data-s="up"]{background:var(--pass)}
+.beat[data-s="up"]::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px solid var(--pass);opacity:.55;animation:ping 2s ease-out infinite}
+.beat[data-s="busy"]{background:var(--live)}
+.beat[data-s="busy"]::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px solid var(--live);opacity:.55;animation:ping 1.2s ease-out infinite}
+.beat[data-s="down"]{background:var(--muted)}
+@keyframes ping{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.5);opacity:0}}
+@media (prefers-reduced-motion:reduce){*,*::after{animation:none!important;transition:none!important}}
+.rn .nm{font-family:var(--f-mono);font-size:12.5px;font-weight:600}
+.rn .lo{font-size:11.5px;color:var(--muted);margin-top:2px}
+.gauge{width:96px}
+.gauge .t{font-family:var(--f-mono);font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:4px}
+.code{
+  font-family:var(--f-mono);font-size:11.5px;background:#0A1120;color:#C6D3E6;
+  border-radius:8px;padding:11px 13px;overflow-x:auto;line-height:1.7;border:1px solid var(--line);
+}
+.code .c{color:#54657F}
+.code .k{color:#8CA9FF}
+
+/* ---------- heal ---------- */
+.diff{font-family:var(--f-mono);font-size:11.5px;border:1px solid var(--line-soft);border-radius:8px;overflow:hidden;background:var(--surface-2)}
+.diff .d{display:flex;gap:10px;padding:3px 12px;white-space:pre-wrap;word-break:break-word}
+.diff .d.del{background:var(--fail-soft);color:var(--fail)}
+.diff .d.add{background:var(--pass-soft);color:var(--pass)}
+.diff .g{color:var(--muted);flex:none;width:26px;text-align:right}
+.stat{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.stat > div{padding:14px 16px;border-right:1px solid var(--line-soft)}
+.stat > div:last-child{border-right:0}
+.stat .v{font-family:var(--f-display);font-size:25px;font-weight:700;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat .k{font-size:11px;color:var(--muted);margin-top:3px}
+.stat .dl{font-family:var(--f-mono);font-size:11px;margin-top:5px}
+
+/* ---------- screen toggle ---------- */
+.screen{display:none}
+.screen.on{display:block}
+.tour{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:0 0 16px;
+}
+.tour .lbl{margin-right:2px}
+.chip{
+  padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface);
+  font-size:12px;font-weight:600;color:var(--ink-2);transition:all .13s;
+}
+.chip:hover{border-color:var(--accent-line);color:var(--ink)}
+.chip[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:var(--ground)}
+.note{
+  max-width:1320px;margin:0 auto;padding:0 20px 18px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;
+}
+.note h1{font-size:19px;letter-spacing:-.03em}
+.note p{font-size:12.5px;color:var(--muted)}
+@media (max-width:1080px){
+  .frame{grid-template-columns:1fr}
+  .rail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);align-items:center}
+  .rail-label,.rail-foot,.navbtn .tick{display:none}
+  .brand{padding:0 12px 0 4px}
+  .split{grid-template-columns:1fr}
+  .signin{grid-template-columns:1fr}
+  .si-left{border-right:0;border-bottom:1px solid var(--line);padding:36px 26px}
+  .si-right{padding:36px 26px}
+  .stat{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+
+<div class="note">
+  <h1>Gantry — interactive prototype</h1>
+  <p>Click through the rail. Live data is simulated; this is the design under review before implementation.</p>
+</div>
+
+<div class="wrap">
+<div class="tour">
+  <span class="lbl">Screens</span>
+  <button class="chip" data-go="signin" aria-current="true">Sign in</button>
+  <button class="chip" data-go="plan">Sprint planner</button>
+  <button class="chip" data-go="agents">Agents</button>
+  <button class="chip" data-go="run">Pipeline run</button>
+  <button class="chip" data-go="runners">Runners</button>
+  <button class="chip" data-go="heal">Results &amp; heal</button>
+</div>
+
+<!-- ================= SIGN IN ================= -->
+<section class="screen on" id="s-signin">
+  <div class="frame" style="grid-template-columns:1fr">
+    <div class="signin">
+      <div class="si-left blueprint">
+        <div class="brand" style="padding:0">
+          <div class="mark">G</div>
+          <div><b>Gantry</b><span>Agentic QE</span></div>
+        </div>
+        <h1>Sprint in.<br><em>Green out.</em></h1>
+        <p class="si-lede">Gantry reads your sprint, writes the specs and test assets, and runs them on your own machines — cloud or the laptop under your desk. When a spec breaks, it fixes itself and shows you the diff.</p>
+        <div class="chain">
+          <span class="lbl" style="margin-bottom:6px">How a story becomes green</span>
+          <div class="chain-row">
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></div>
+            <div><div class="t">Plan the sprint</div><div class="d">sprint-planner sizes and sequences the backlog</div></div>
+          </div>
+          <div class="chain-line"></div>
+          <div class="chain-row">
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg></div>
+            <div><div class="t">Generate specs &amp; assets</div><div class="d">qe-pipelines and qe-batch turn stories into runnable suites</div></div>
+          </div>
+          <div class="chain-line"></div>
+          <div class="chain-row">
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+            <div><div class="t">Run on your servers</div><div class="d">outbound runners — no inbound ports, no SSH keys</div></div>
+          </div>
+          <div class="chain-line"></div>
+          <div class="chain-row">
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></div>
+            <div><div class="t">Heal what breaks</div><div class="d">qe-auto-heal proposes the patch; batch-heal fixes the fleet</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="si-right">
+        <div>
+          <h2>Sign in to Gantry</h2>
+          <p class="sub" style="margin-top:7px">Use the account your code already lives under.</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="oauth">
+            <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.57c2.08-1.92 3.27-4.74 3.27-8.09Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.76c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 0 0-9.82 6.05l3.66 2.84C6.71 7.29 9.14 5.38 12 5.38Z"/></svg>
+            Continue with Google
+            <span class="go">↵</span>
+          </button>
+          <button class="oauth">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 1a11 11 0 0 0-3.48 21.44c.55.1.75-.24.75-.53v-1.9c-3.06.67-3.71-1.3-3.71-1.3-.5-1.28-1.22-1.62-1.22-1.62-1-.68.08-.67.08-.67 1.1.08 1.68 1.14 1.68 1.14.98 1.69 2.58 1.2 3.21.92.1-.72.38-1.2.7-1.48-2.44-.28-5.01-1.23-5.01-5.47 0-1.21.43-2.2 1.14-2.97-.11-.28-.5-1.4.11-2.93 0 0 .93-.3 3.05 1.14a10.5 10.5 0 0 1 5.56 0c2.12-1.44 3.05-1.14 3.05-1.14.61 1.53.22 2.65.11 2.93.71.77 1.14 1.76 1.14 2.97 0 4.25-2.58 5.19-5.03 5.46.4.34.75 1 .75 2.02v3c0 .29.2.64.76.53A11 11 0 0 0 12 1Z"/></svg>
+            Continue with GitHub
+            <span class="go">↵</span>
+          </button>
+        </div>
+        <div class="or">then</div>
+        <div class="card flat" style="padding:14px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="pill p-acc"><span class="dot"></span>Workspace</span>
+            <p class="fine" style="margin:0">Your first sign-in creates a workspace. Invite your team, connect a runner, and point Gantry at a repo — the agents pick up from there.</p>
+          </div>
+        </div>
+        <p class="fine">Sessions are httpOnly cookies signed by Auth.js. Gantry never stores a password, and never asks for one.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= APP SHELL ================= -->
+<div class="frame" id="app-frame" style="display:none">
+  <nav class="rail">
+    <div class="brand">
+      <div class="mark">G</div>
+      <div><b>Gantry</b><span>Payments Web</span></div>
+    </div>
+    <span class="rail-label">Workspace</span>
+    <button class="navbtn" data-go="plan"><svg class="ic" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg>Sprint planner<span class="tick">S-24</span></button>
+    <button class="navbtn" data-go="agents"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg>Agents<span class="tick">6</span></button>
+    <button class="navbtn" data-go="run"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg>Pipelines<span class="tick">3</span></button>
+    <span class="rail-label">Execution</span>
+    <button class="navbtn" data-go="runners"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Runners<span class="tick">4</span></button>
+    <button class="navbtn" data-go="heal"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>Results &amp; heal<span class="tick">7</span></button>
+    <div class="rail-foot">
+      <div class="who">
+        <div class="av">CK</div>
+        <div><div class="n">Chandan K.</div><div class="e">Workspace owner</div></div>
+      </div>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="bar">
+      <div>
+        <div class="crumb">payments-web / <b id="crumb">sprint-24</b></div>
+        <h2 id="pagetitle">Sprint planner</h2>
+      </div>
+      <div class="sp"></div>
+      <span class="pill p-live" id="livepill"><span class="dot"></span>2 runs live</span>
+      <button class="btn"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</button>
+      <button class="btn pri"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New run</button>
+    </div>
+    <div class="pane">
+
+    <!-- ---------- PLANNER ---------- -->
+    <section class="screen on" id="s-plan">
+      <div class="stat" style="margin-bottom:16px">
+        <div><div class="v">34</div><div class="k">Points committed</div><div class="dl" style="color:var(--pass)">▲ 6 vs sprint 23</div></div>
+        <div><div class="v">11</div><div class="k">Stories in scope</div><div class="dl" style="color:var(--muted)">3 need acceptance criteria</div></div>
+        <div><div class="v">86%</div><div class="k">Spec coverage forecast</div><div class="dl" style="color:var(--pass)">▲ 12 pts after generation</div></div>
+        <div><div class="v">4.2h</div><div class="k">Est. runner time</div><div class="dl" style="color:var(--muted)">across 4 runners</div></div>
+      </div>
+      <div class="split">
+        <div class="card">
+          <div class="card-h">
+            <h3>Sprint 24 backlog</h3>
+            <span class="pill p-idle">Sep 1 – Sep 12</span>
+            <div class="sp"></div>
+            <button class="btn sm">Import from Jira</button>
+            <button class="btn sm pri" data-go="run">Generate specs →</button>
+          </div>
+          <div id="storylist"></div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-h">
+              <h3>sprint-planner</h3>
+              <span class="pill p-pass"><span class="dot"></span>Proposal ready</span>
+            </div>
+            <div class="card-b grid" style="gap:13px">
+              <div class="agent-out">
+                Committing <strong>34 points across 11 stories</strong> fits your 3-sprint rolling velocity of 31–36. I moved <strong>PAY-812</strong> ahead of <strong>PAY-806</strong> — 806's checkout assertions depend on 812's new idempotency key. <strong>PAY-830</strong> has no acceptance criteria; I drafted three and flagged them for review rather than guessing.
+              </div>
+              <div class="cap">
+                <div class="cap-row"><span>Team capacity</span><b>36 pts</b></div>
+                <div class="bar-track"><div class="bar-fill" style="width:94%"></div></div>
+                <div class="cap-row"><span class="sub">Committed 34 · 2 pts headroom</span><b class="sub">94%</b></div>
+              </div>
+              <hr class="hr">
+              <div class="grid" style="gap:8px">
+                <span class="lbl">Risks it flagged</span>
+                <div style="display:flex;gap:7px;flex-wrap:wrap">
+                  <span class="pill p-heal"><span class="dot"></span>3 stories missing AC</span>
+                  <span class="pill p-heal"><span class="dot"></span>1 cross-team dependency</span>
+                  <span class="pill p-fail"><span class="dot"></span>PAY-799 flaky since S-22</span>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn pri" style="flex:1;justify-content:center">Accept plan</button>
+                <button class="btn">Revise</button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Hand off to</h3></div>
+            <div class="card-b grid" style="gap:9px">
+              <div class="io"><span class="tag">11 stories</span><span class="ar">→</span><span class="tag">qe-batch</span><span class="ar">→</span><span class="tag">specs + assets</span></div>
+              <p class="sub">qe-batch fans all 11 stories out in parallel across your idle runners. Single stories go through qe-pipelines instead.</p>
+              <button class="btn" style="justify-content:center" data-go="run">Open pipeline view</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- AGENTS ---------- -->
+    <section class="screen" id="s-agents">
+      <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+        <div>
+          <h3 style="font-size:17px">The six agents</h3>
+          <p class="sub" style="max-width:62ch;margin-top:5px">Each agent has one job, a typed input, and a typed output. They compose — the output of one is the input of the next — so a sprint walks from backlog to green without a human in the middle unless it asks for one.</p>
+        </div>
+        <div class="sp" style="margin-left:auto"></div>
+        <button class="btn sm">Agent logs</button>
+      </div>
+      <div class="agrid" id="agentgrid"></div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-h"><h3>Composition</h3><span class="pill p-idle">read left to right</span></div>
+        <div class="card-b blueprint">
+          <div class="flow">
+            <div class="node" data-s="done"><span class="nm">sprint-planner</span><span class="st">backlog → plan</span><span class="spark"><i></i></span></div>
+            <div class="link" data-on="1"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
+            <div class="node" data-s="done"><span class="nm">qe-batch</span><span class="st">plan → 11 jobs</span><span class="spark"><i></i></span></div>
+            <div class="link" data-on="1"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
+            <div class="node" data-s="done"><span class="nm">qe-pipelines</span><span class="st">story → spec</span><span class="spark"><i></i></span></div>
+            <div class="link" data-on="1"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
+            <div class="node" data-s="run"><span class="nm">runner</span><span class="st">executing</span><span class="spark"><i style="width:62%"></i></span></div>
+            <div class="link"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
+            <div class="node" data-s="wait"><span class="nm">qe-auto-heal</span><span class="st">failure → patch</span><span class="spark"><i></i></span></div>
+            <div class="link"><svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg></div>
+            <div class="node" data-s="wait"><span class="nm">batch-heal</span><span class="st">fleet → PR</span><span class="spark"><i></i></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- RUN ---------- -->
+    <section class="screen" id="s-run">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h">
+          <h3>PAY-812 · Idempotency keys on checkout</h3>
+          <span class="pill p-live" id="runstate"><span class="dot"></span>Running</span>
+          <div class="sp"></div>
+          <span class="mono sub" id="runclock">00:41</span>
+          <button class="btn sm">Cancel</button>
+        </div>
+        <div class="card-b blueprint">
+          <div class="flow" id="pipeflow"></div>
+        </div>
+      </div>
+      <div class="split">
+        <div class="term">
+          <div class="term-h">
+            <span class="pill p-live" style="background:rgba(92,200,234,.12);border-color:rgba(92,200,234,.3);color:#5FC8EA"><span class="dot"></span>live</span>
+            <span class="lbl">agent stream · runner <span class="mono">eu-ci-02</span></span>
+            <div class="sp"></div>
+            <button class="btn sm" style="background:transparent;border-color:rgba(255,255,255,.14);color:#9FB0C9" id="btn-restart">Replay</button>
+          </div>
+          <div class="term-b" id="stream"></div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-h"><h3>Assets produced</h3><span class="pill p-acc" id="assetcount">0</span></div>
+            <div class="card-b grid" style="gap:8px" id="assets"></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Where it ran</h3></div>
+            <div class="card-b grid" style="gap:11px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span class="beat" data-s="busy"></span>
+                <div><div class="mono" style="font-size:12.5px;font-weight:600">eu-ci-02</div><div class="sub">Hetzner · fsn1 · 8 vCPU</div></div>
+                <div class="sp" style="margin-left:auto"></div>
+                <span class="pill p-live">claimed</span>
+              </div>
+              <hr class="hr">
+              <p class="sub">The runner pulled this job over its own outbound connection. Gantry never opened a port on your network and holds no SSH key.</p>
+              <button class="btn" style="justify-content:center" data-go="runners">Manage runners</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- RUNNERS ---------- -->
+    <section class="screen" id="s-runners">
+      <div class="split">
+        <div class="card">
+          <div class="card-h">
+            <h3>Connected runners</h3>
+            <span class="pill p-pass"><span class="dot"></span>3 up</span>
+            <div class="sp"></div>
+            <button class="btn sm pri">Add runner</button>
+          </div>
+          <div id="runnerlist"></div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-h"><h3>Connect a machine</h3></div>
+            <div class="card-b grid" style="gap:12px">
+              <p class="sub">Run this on any box — your laptop, a CI worker, a bare-metal rack. It dials out to Gantry and starts claiming jobs.</p>
+              <div class="code"><span class="c"># any machine, cloud or local</span><br>npx <span class="k">@gantry/runner</span> connect \<br>&nbsp;&nbsp;--token <span class="k">gnt_rnr_7f3c…a91</span> \<br>&nbsp;&nbsp;--name <span class="k">my-laptop</span> --slots <span class="k">2</span></div>
+              <div style="display:flex;gap:8px">
+                <button class="btn sm">Copy command</button>
+                <button class="btn sm">Rotate token</button>
+              </div>
+              <hr class="hr">
+              <div class="grid" style="gap:7px">
+                <span class="lbl">Requirements</span>
+                <p class="sub">Outbound HTTPS to gantry.app. No inbound ports, no VPN, no SSH key held by us. The token scopes to one workspace and can be revoked here.</p>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Queue</h3><span class="pill p-heal"><span class="dot"></span>2 waiting</span></div>
+            <div class="card-b grid" style="gap:9px">
+              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5"/></svg><span class="p">PAY-806 · spec-gen</span><span class="z">queued 0:12</span></div>
+              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5"/></svg><span class="p">PAY-830 · asset-gen</span><span class="z">queued 0:04</span></div>
+              <p class="sub">Both are waiting on a free slot. Add a runner or raise <span class="mono">--slots</span> to drain faster.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- HEAL ---------- -->
+    <section class="screen" id="s-heal">
+      <div class="stat" style="margin-bottom:16px">
+        <div><div class="v">312</div><div class="k">Specs executed</div><div class="dl" style="color:var(--muted)">sprint 24 to date</div></div>
+        <div><div class="v" style="color:var(--pass)">297</div><div class="k">Passing</div><div class="dl" style="color:var(--pass)">95.2%</div></div>
+        <div><div class="v" style="color:var(--fail)">15</div><div class="k">Failing</div><div class="dl" style="color:var(--heal)">11 have a proposed patch</div></div>
+        <div><div class="v" style="color:var(--heal)">9</div><div class="k">Healed automatically</div><div class="dl" style="color:var(--muted)">2 needed a human</div></div>
+      </div>
+      <div class="split">
+        <div class="card">
+          <div class="card-h">
+            <h3>qe-auto-heal · proposed patch</h3>
+            <span class="pill p-heal"><span class="dot"></span>Awaiting review</span>
+            <div class="sp"></div>
+            <span class="mono sub">checkout.idempotency.spec.ts</span>
+          </div>
+          <div class="card-b grid" style="gap:13px">
+            <div class="agent-out">
+              The selector <strong>[data-test=submit]</strong> stopped resolving after commit <strong>a19f4c2</strong> renamed it to <strong>[data-test=checkout-submit]</strong>. This is a rename, not a regression — the assertion below it still describes the behaviour correctly, so I only moved the selector and left the expectation alone.
+            </div>
+            <div class="diff">
+              <div class="d"><span class="g">41</span><span>  await page.goto('/checkout');</span></div>
+              <div class="d del"><span class="g">42</span><span>- await page.click('[data-test=submit]');</span></div>
+              <div class="d add"><span class="g">42</span><span>+ await page.click('[data-test=checkout-submit]');</span></div>
+              <div class="d"><span class="g">43</span><span>  await expect(page).toHaveURL(/\/receipt\//);</span></div>
+              <div class="d"><span class="g">44</span><span>  await expect(orderCount).toBe(1); // idempotent</span></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn pri">Apply &amp; re-run</button>
+              <button class="btn">Open in editor</button>
+              <div class="sp" style="margin-left:auto"></div>
+              <span class="sub">verified green on <span class="mono">eu-ci-02</span> before proposing</span>
+            </div>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-h"><h3>batch-heal</h3><span class="pill p-acc"><span class="dot"></span>11 candidates</span></div>
+            <div class="card-b grid" style="gap:12px">
+              <p class="sub">The same rename broke 11 specs across 4 suites. batch-heal patches all of them, re-runs each on a free runner, and opens one PR with only the ones that went green.</p>
+              <div class="grid" style="gap:7px">
+                <div class="cap-row"><span class="sub">Patched &amp; verified</span><b class="mono" style="color:var(--pass)">9 / 11</b></div>
+                <div class="bar-track"><div class="bar-fill" style="width:82%;background:var(--pass)"></div></div>
+                <div class="cap-row"><span class="sub">Escalated to you</span><b class="mono" style="color:var(--heal)">2</b></div>
+              </div>
+              <button class="btn pri" style="justify-content:center">Open PR with 9 fixes</button>
+              <p class="fine">The 2 escalations changed an assertion, not a selector. Gantry will not rewrite an expectation on its own.</p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Failing suites</h3></div>
+            <div class="card-b grid" style="gap:8px">
+              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><span class="p">checkout/*</span><span class="pill p-heal" style="margin-left:auto">9 patched</span></div>
+              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><span class="p">refunds/*</span><span class="pill p-fail" style="margin-left:auto">2 escalated</span></div>
+              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><span class="p">wallet/*</span><span class="pill p-heal" style="margin-left:auto">healing</span></div>
+              <div class="asset"><svg viewBox="0 0 24 24"><path d="M12 8v5M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg><span class="p">payouts/*</span><span class="pill p-fail" style="margin-left:auto">flaky · quarantine?</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const el = (t, c, h) => { const n = document.createElement(t); if (c) n.className = c; if (h != null) n.innerHTML = h; return n; };
+
+  /* ---------- data ---------- */
+  const stories = [
+    { k: 'PAY-812', t: 'Idempotency keys on checkout submit', p: 5, on: 1, tags: [['p-pass', 'AC complete'], ['p-acc', 'spec ready']] },
+    { k: 'PAY-806', t: 'Retry failed card authorisation once', p: 3, on: 1, tags: [['p-pass', 'AC complete'], ['p-idle', 'depends on 812']] },
+    { k: 'PAY-830', t: 'Partial refund for split-tender orders', p: 8, on: 1, tags: [['p-heal', 'AC drafted by agent']] },
+    { k: 'PAY-799', t: 'Wallet balance reconciliation job', p: 5, on: 1, tags: [['p-fail', 'flaky since S-22']] },
+    { k: 'PAY-841', t: 'Apple Pay sheet on mobile web', p: 5, on: 1, tags: [['p-pass', 'AC complete']] },
+    { k: 'PAY-845', t: 'Decline reason codes surfaced to support', p: 3, on: 1, tags: [['p-pass', 'AC complete']] },
+    { k: 'PAY-851', t: 'Payout schedule editor', p: 5, on: 0, tags: [['p-idle', 'next sprint']] },
+    { k: 'PAY-858', t: 'Dispute evidence upload limits', p: 2, on: 1, tags: [['p-heal', 'AC drafted by agent']] }
+  ];
+
+  const agents = [
+    { id: 'sprint-planner', role: 'Planning', d: 'Reads the backlog, sizes what has no estimate, orders by dependency, and commits only what velocity supports. Flags what it refuses to guess at.', io: ['backlog', 'sprint plan'], st: ['p-pass', 'Proposal ready'], runs: '18 runs' },
+    { id: 'qe-pipelines', role: 'Generation · single', d: 'Takes one story end to end: acceptance criteria to spec file, fixtures, page objects, and test data. Runs the spec once before calling it done.', io: ['story', 'spec + assets'], st: ['p-live', 'Running'], runs: '204 runs' },
+    { id: 'qe-batch', role: 'Generation · parallel', d: 'Fans a whole sprint out at once. Shards stories across every idle runner, dedupes shared fixtures, and merges the result into one changeset.', io: ['sprint plan', 'n × specs'], st: ['p-live', 'Running'], runs: '31 runs' },
+    { id: 'qe-auto-heal', role: 'Repair · single', d: 'Reads the failure, the diff that caused it, and the spec. Proposes the smallest patch, verifies it green on a real runner, then asks you.', io: ['failure', 'verified patch'], st: ['p-heal', '2 awaiting review'], runs: '96 runs' },
+    { id: 'batch-heal', role: 'Repair · fleet', d: 'When one change breaks many specs, patches them together, re-runs each, and opens a single PR containing only the ones that actually went green.', io: ['n × failures', 'one PR'], st: ['p-idle', 'Idle'], runs: '12 runs' },
+    { id: 'qe-insights', role: 'Analysis', d: 'Watches every run for flake signatures, slow suites, and coverage gaps against the sprint, then tells the planner what to pull in next.', io: ['run history', 'signals'], st: ['p-pass', 'Healthy'], runs: '412 runs' }
+  ];
+
+  const agentIcon = {
+    'sprint-planner': '<path d="M4 6h16M4 12h10M4 18h13"/>',
+    'qe-pipelines': '<path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/>',
+    'qe-batch': '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    'qe-auto-heal': '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>',
+    'batch-heal': '<path d="M20 11a8 8 0 1 0-2.7 6"/><path d="M20 4v5h-5"/><path d="M8 12h8M12 8v8"/>',
+    'qe-insights': '<path d="M3 18l5-6 4 4 4-7 5 6"/><path d="M3 21h18"/>'
+  };
+
+  const runners = [
+    { n: 'eu-ci-02', lo: 'Hetzner · fsn1 · 8 vCPU · cloud', s: 'busy', use: 62, sl: '2 / 2 slots', v: 'v1.4.0' },
+    { n: 'us-ci-01', lo: 'AWS · us-east-1 · 16 vCPU · cloud', s: 'up', use: 18, sl: '1 / 4 slots', v: 'v1.4.0' },
+    { n: 'chandan-mbp', lo: 'Local · macOS 15 · behind NAT', s: 'up', use: 0, sl: '0 / 2 slots', v: 'v1.4.0' },
+    { n: 'bare-metal-03', lo: 'On-prem · rack B · offline 2h', s: 'down', use: 0, sl: '— slots', v: 'v1.3.2' }
+  ];
+
+  const steps = [
+    { nm: 'read story', st: 'acceptance criteria' },
+    { nm: 'plan specs', st: '4 scenarios' },
+    { nm: 'write spec', st: 'playwright ts' },
+    { nm: 'fixtures', st: 'test data' },
+    { nm: 'dry run', st: 'on runner' },
+    { nm: 'commit', st: 'branch + PR' }
+  ];
+
+  /* ---------- render: stories ---------- */
+  const sl = $('#storylist');
+  stories.forEach(s => {
+    const row = el('div', 'story');
+    row.innerHTML =
+      `<span class="ck" data-on="${s.on}" role="checkbox" aria-checked="${s.on ? 'true' : 'false'}" tabindex="0"></span>
+       <div><div class="key">${s.k}</div><div class="ttl">${s.t}</div>
+       <div class="meta">${s.tags.map(t => `<span class="pill ${t[0]}"><span class="dot"></span>${t[1]}</span>`).join('')}</div></div>
+       <div class="pts">${s.p}<span class="sub" style="font-size:10px"> pt</span></div>`;
+    const ck = $('.ck', row);
+    const flip = () => { const v = ck.dataset.on === '1' ? '0' : '1'; ck.dataset.on = v; ck.setAttribute('aria-checked', v === '1'); };
+    ck.addEventListener('click', flip);
+    ck.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); } });
+    sl.append(row);
+  });
+
+  /* ---------- render: agents ---------- */
+  const ag = $('#agentgrid');
+  agents.forEach(a => {
+    const c = el('div', 'agent');
+    c.innerHTML =
+      `<div class="agent-top">
+         <div class="agent-mk"><svg viewBox="0 0 24 24">${agentIcon[a.id]}</svg></div>
+         <div><h4>${a.id}</h4><div class="role">${a.role}</div></div>
+         <div style="margin-left:auto"><span class="pill ${a.st[0]}"><span class="dot"></span>${a.st[1]}</span></div>
+       </div>
+       <p class="desc">${a.d}</p>
+       <div class="io"><span class="tag">${a.io[0]}</span><span class="ar">→</span><span class="tag">${a.io[1]}</span></div>
+       <div class="agent-foot"><button class="btn sm">Configure</button><button class="btn sm pri">Invoke</button><span class="runs">${a.runs}</span></div>`;
+    ag.append(c);
+  });
+
+  /* ---------- render: runners ---------- */
+  const rl = $('#runnerlist');
+  runners.forEach(r => {
+    const row = el('div', 'rn');
+    const label = r.s === 'busy' ? ['p-live', 'running 1 job'] : r.s === 'up' ? ['p-pass', 'idle'] : ['p-idle', 'offline'];
+    row.innerHTML =
+      `<span class="beat" data-s="${r.s}"></span>
+       <div><div class="nm">${r.n}</div><div class="lo">${r.lo}</div></div>
+       <div class="gauge"><div class="t"><span>${r.sl}</span><span>${r.use}%</span></div>
+         <div class="bar-track"><div class="bar-fill" style="width:${r.use}%;background:${r.s === 'busy' ? 'var(--live)' : 'var(--pass)'}"></div></div></div>
+       <div style="display:flex;gap:8px;align-items:center"><span class="pill ${label[0]}"><span class="dot"></span>${label[1]}</span><span class="mono sub" style="font-size:11px">${r.v}</span></div>`;
+    rl.append(row);
+  });
+
+  /* ---------- render: pipeline nodes ---------- */
+  const pf = $('#pipeflow');
+  steps.forEach((s, i) => {
+    if (i) {
+      const lk = el('div', 'link');
+      lk.innerHTML = '<svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg>';
+      pf.append(lk);
+    }
+    const n = el('div', 'node');
+    n.dataset.s = 'wait';
+    n.innerHTML = `<span class="nm">${s.nm}</span><span class="st">${s.st}</span><span class="spark"><i></i></span>`;
+    pf.append(n);
+  });
+
+  /* ---------- navigation ---------- */
+  const titles = {
+    plan: ['Sprint planner', 'sprint-24'],
+    agents: ['Agents', 'agents'],
+    run: ['Pipeline run', 'runs / PAY-812'],
+    runners: ['Runners', 'runners'],
+    heal: ['Results & heal', 'results']
+  };
+  const frame = $('#app-frame'), signin = $('#s-signin');
+
+  function go(id) {
+    $$('.chip').forEach(c => c.setAttribute('aria-current', String(c.dataset.go === id)));
+    if (id === 'signin') { signin.classList.add('on'); frame.style.display = 'none'; return; }
+    signin.classList.remove('on');
+    frame.style.display = 'grid';
+    $$('.pane .screen').forEach(s => s.classList.toggle('on', s.id === 's-' + id));
+    $$('.navbtn').forEach(b => b.setAttribute('aria-current', String(b.dataset.go === id)));
+    $('#pagetitle').textContent = titles[id][0];
+    $('#crumb').textContent = titles[id][1];
+    if (id === 'run') startRun();
+  }
+  $$('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+
+  /* ---------- simulated run ---------- */
+  const script = [
+    ['qe-pipelines', 'reading PAY-812 — 3 acceptance criteria, 1 drafted by sprint-planner', ''],
+    ['qe-pipelines', 'planning 4 scenarios: happy path, duplicate submit, expired key, network retry', ''],
+    ['qe-pipelines', 'wrote checkout.idempotency.spec.ts (128 lines)', 'ok'],
+    ['qe-pipelines', 'reusing fixture cardTokens.ts — already covers 3 test cards', 'dim'],
+    ['qe-pipelines', 'wrote fixtures/idempotencyKeys.ts', 'ok'],
+    ['runner', 'claimed by eu-ci-02 · 2 slots · fsn1', 'dim'],
+    ['runner', 'npx playwright test checkout.idempotency --reporter=line', 'dim'],
+    ['runner', '3 passed', 'ok'],
+    ['runner', '1 failed — duplicate submit: expected 1 order, got 2', 'er'],
+    ['qe-auto-heal', 'failure is in the app, not the spec — the assertion is correct', 'wn'],
+    ['qe-auto-heal', 'not patching. filing PAY-812-BUG with the reproduction', 'wn'],
+    ['qe-pipelines', 'committed to gantry/pay-812-specs · 2 files · awaiting your review', 'ok']
+  ];
+  const stream = $('#stream');
+  let runTimer = null, clockTimer = null;
+
+  function startRun() {
+    if (runTimer) return;
+    stream.innerHTML = '';
+    $$('#pipeflow .node').forEach(n => { n.dataset.s = 'wait'; $('i', n).style.width = '0'; });
+    $$('#pipeflow .link').forEach(l => l.dataset.on = '0');
+    $('#assets').innerHTML = '';
+    $('#assetcount').textContent = '0';
+    $('#runstate').className = 'pill p-live';
+    $('#runstate').innerHTML = '<span class="dot"></span>Running';
+
+    let i = 0, t = 0;
+    clockTimer = setInterval(() => {
+      t++; $('#runclock').textContent = '00:' + String(t).padStart(2, '0');
+    }, 1000);
+
+    const assets = [
+      ['tests/checkout.idempotency.spec.ts', '128 lines'],
+      ['fixtures/idempotencyKeys.ts', '34 lines'],
+      ['reports/PAY-812.run.json', '3 pass · 1 fail']
+    ];
+
+    runTimer = setInterval(() => {
+      if (i >= script.length) {
+        clearInterval(runTimer); clearInterval(clockTimer); runTimer = null;
+        $('#runstate').className = 'pill p-heal';
+        $('#runstate').innerHTML = '<span class="dot"></span>Needs review';
+        const cur = $('.cursor', stream); if (cur) cur.remove();
+        return;
+      }
+      const [who, msg, kind] = script[i];
+      const line = el('div', 'ln');
+      const ts = '00:' + String(3 + i * 3).padStart(2, '0');
+      line.innerHTML = `<span class="ts">${ts}</span><span class="ag">${who}</span><span class="${kind}">${msg}</span>`;
+      const cur = $('.cursor', stream); if (cur) cur.remove();
+      stream.append(line);
+      const c = el('span', 'cursor'); stream.append(c);
+      stream.scrollTop = stream.scrollHeight;
+
+      // advance pipeline nodes
+      const nodes = $$('#pipeflow .node'), links = $$('#pipeflow .link');
+      const stage = Math.min(Math.floor(i / 2), nodes.length - 1);
+      nodes.forEach((n, k) => {
+        if (k < stage) { n.dataset.s = 'done'; }
+        else if (k === stage) { n.dataset.s = 'run'; $('i', n).style.width = (i % 2 ? 90 : 45) + '%'; }
+      });
+      links.forEach((l, k) => l.dataset.on = k < stage ? '1' : '0');
+
+      // assets appear as they are written
+      const shouldHave = i >= 11 ? 3 : i >= 4 ? 2 : i >= 2 ? 1 : 0;
+      const box = $('#assets');
+      while (box.children.length < shouldHave) {
+        const [p, z] = assets[box.children.length];
+        const a = el('div', 'asset');
+        a.innerHTML = `<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></svg><span class="p">${p}</span><span class="z">${z}</span>`;
+        box.append(a);
+        $('#assetcount').textContent = box.children.length;
+      }
+      i++;
+    }, 900);
+  }
+
+  $('#btn-restart').addEventListener('click', () => {
+    if (runTimer) { clearInterval(runTimer); clearInterval(clockTimer); runTimer = null; }
+    startRun();
+  });
+
+  go('signin');
+})();
+</script>

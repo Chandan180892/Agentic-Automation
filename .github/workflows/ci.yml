@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "file:./ci.db"
+      AUTH_SECRET: "ci-only-secret-value-not-used-in-production="
+      AUTH_TRUST_HOST: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply schema
+        run: npx prisma db push --skip-generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npx next build
+
+      - name: Agent contract checks
+        run: npx tsx scripts/agents-check.ts
+
+      - name: Runner protocol smoke test
+        run: |
+          npx next start -p 3210 &
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://127.0.0.1:3210/login; then break; fi
+            sleep 1
+          done
+          BASE=http://127.0.0.1:3210 node scripts/smoke.mjs
+
+      - name: Runner CLI syntax
+        run: node --check packages/runner/bin/gantry-runner.mjs

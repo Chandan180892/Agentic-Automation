@@ -1,0 +1,192 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Gantry — "Blueprint & Bench"
+   Planning surfaces read as drafting paper; execution surfaces as instruments.
+   Every colour is a variable so the three theme states (light, dark, and the
+   un-stamped system default) all resolve from one set.
+--------------------------------------------------------------------------- */
+
+:root {
+  --ground: #edf0f5;
+  --surface: #ffffff;
+  --surface-2: #f6f8fb;
+  --surface-3: #eaeff6;
+  --ink: #0d1526;
+  --ink-2: #3c4a61;
+  --muted: #6b7c96;
+  --line: #d6dde8;
+  --line-soft: #e6ebf2;
+  --accent: #1b44c8;
+  --accent-ink: #ffffff;
+  --accent-soft: #e4eafc;
+  --accent-line: #b9c7f4;
+  --pass: #0a7c4a;
+  --pass-soft: #def3e8;
+  --fail: #b02318;
+  --fail-soft: #fbe4e1;
+  --heal: #a85c08;
+  --heal-soft: #fbedd9;
+  --live: #0b6e8c;
+  --live-soft: #dbf0f7;
+  --grid: rgba(27, 68, 200, 0.07);
+  --shadow: 0 1px 2px rgba(13, 21, 38, 0.06), 0 10px 28px -14px rgba(13, 21, 38, 0.22);
+  --shadow-lift: 0 2px 4px rgba(13, 21, 38, 0.07), 0 18px 44px -18px rgba(13, 21, 38, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #080c14;
+    --surface: #0f1725;
+    --surface-2: #131d2e;
+    --surface-3: #182337;
+    --ink: #e8eef9;
+    --ink-2: #b7c4d8;
+    --muted: #7f91ab;
+    --line: #233149;
+    --line-soft: #1a2437;
+    --accent: #7a9bff;
+    --accent-ink: #08101f;
+    --accent-soft: #17243f;
+    --accent-line: #2f4574;
+    --pass: #43d08d;
+    --pass-soft: #0e2a20;
+    --fail: #ff8e7e;
+    --fail-soft: #2d1613;
+    --heal: #f0b256;
+    --heal-soft: #2b1e0d;
+    --live: #5fc8ea;
+    --live-soft: #0b2632;
+    --grid: rgba(122, 155, 255, 0.07);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+    --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.45), 0 18px 44px -18px rgba(0, 0, 0, 0.8);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #080c14;
+  --surface: #0f1725;
+  --surface-2: #131d2e;
+  --surface-3: #182337;
+  --ink: #e8eef9;
+  --ink-2: #b7c4d8;
+  --muted: #7f91ab;
+  --line: #233149;
+  --line-soft: #1a2437;
+  --accent: #7a9bff;
+  --accent-ink: #08101f;
+  --accent-soft: #17243f;
+  --accent-line: #2f4574;
+  --pass: #43d08d;
+  --pass-soft: #0e2a20;
+  --fail: #ff8e7e;
+  --fail-soft: #2d1613;
+  --heal: #f0b256;
+  --heal-soft: #2b1e0d;
+  --live: #5fc8ea;
+  --live-soft: #0b2632;
+  --grid: rgba(122, 155, 255, 0.07);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+  --shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.45), 0 18px 44px -18px rgba(0, 0, 0, 0.8);
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-pass: var(--pass);
+  --color-pass-soft: var(--pass-soft);
+  --color-fail: var(--fail);
+  --color-fail-soft: var(--fail-soft);
+  --color-heal: var(--heal);
+  --color-heal-soft: var(--heal-soft);
+  --color-live: var(--live);
+  --color-live-soft: var(--live-soft);
+
+  --font-display: var(--font-archivo), "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-plex-sans), "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-plex-mono), "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --shadow-card: var(--shadow);
+  --shadow-lift: var(--shadow-lift);
+}
+
+* {
+  border-color: var(--line);
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::after, *::before {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Drafting-paper grid, used only on planning surfaces. */
+.blueprint {
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Instrument heartbeat on runner rows. */
+@keyframes gantry-ping {
+  0% { transform: scale(0.6); opacity: 0.7; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.beat::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  border: 1.5px solid currentColor;
+  opacity: 0.55;
+  animation: gantry-ping 2s ease-out infinite;
+}
+
+@keyframes gantry-blink { 50% { opacity: 0; } }
+.cursor { animation: gantry-blink 1.05s steps(2) infinite; }
+
+/* Log surfaces stay dark in both themes — a terminal is a terminal. */
+.term { background: #0a1120; border: 1px solid var(--line); }
+.term-text { color: #c6d3e6; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }

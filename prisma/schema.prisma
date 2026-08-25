@@ -1,0 +1,213 @@
+// Gantry — agentic QE automation.
+// Default provider is sqlite so a fresh clone runs with zero setup.
+// For Postgres: `npm run db:postgres` (rewrites the provider below), then set
+// DATABASE_URL to your Postgres connection string.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- Auth.js --
+
+model User {
+  id            String       @id @default(cuid())
+  name          String?
+  email         String?      @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime     @default(now())
+  accounts      Account[]
+  sessions      Session[]
+  memberships   Membership[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// -------------------------------------------------------------- Workspace --
+
+model Workspace {
+  id        String       @id @default(cuid())
+  name      String
+  slug      String       @unique
+  createdAt DateTime     @default(now())
+  members   Membership[]
+  sprints   Sprint[]
+  runners   Runner[]
+  runs      Run[]
+}
+
+model Membership {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        String    @default("owner") // owner | admin | member
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+// ----------------------------------------------------------------- Sprint --
+
+model Sprint {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  name           String
+  goal           String?
+  startsAt       DateTime
+  endsAt         DateTime
+  capacityPoints Int       @default(30)
+  status         String    @default("planning") // planning | active | closed
+  planJson       String? // sprint-planner proposal, JSON
+  createdAt      DateTime  @default(now())
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stories        Story[]
+  runs           Run[]
+}
+
+model Story {
+  id                 String   @id @default(cuid())
+  sprintId           String
+  key                String
+  title              String
+  description        String   @default("")
+  acceptanceCriteria String   @default("[]") // JSON array of strings
+  points             Int?
+  priority           Int      @default(0)
+  status             String   @default("todo") // todo | specced | running | green | failing
+  tagsJson           String   @default("[]")
+  committed          Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  sprint             Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  jobs               Job[]
+
+  @@unique([sprintId, key])
+}
+
+// -------------------------------------------------------- Agents & running --
+
+model Run {
+  id          String    @id @default(cuid())
+  workspaceId String
+  sprintId    String?
+  agent       String // sprint-planner | qe-pipelines | qe-batch | qe-auto-heal | batch-heal | qe-insights
+  mode        String    @default("single") // single | batch
+  status      String    @default("queued") // queued | running | succeeded | failed | needs_review
+  inputJson   String    @default("{}")
+  outputJson  String?
+  error       String?
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sprint      Sprint?   @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  jobs        Job[]
+  events      Event[]
+}
+
+model Job {
+  id         String    @id @default(cuid())
+  runId      String
+  storyId    String?
+  runnerId   String?
+  kind       String // spec-gen | asset-gen | execute | heal
+  status     String    @default("queued") // queued | claimed | running | passed | failed | cancelled
+  payloadJson String   @default("{}")
+  resultJson String?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+  claimedAt  DateTime?
+  finishedAt DateTime?
+  run        Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  story      Story?    @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  runner     Runner?   @relation(fields: [runnerId], references: [id], onDelete: SetNull)
+  assets     Asset[]
+  events     Event[]
+
+  @@index([status, createdAt])
+}
+
+model Asset {
+  id        String   @id @default(cuid())
+  jobId     String
+  path      String
+  kind      String // spec | fixture | pageobject | data | report | patch
+  content   String
+  bytes     Int      @default(0)
+  createdAt DateTime @default(now())
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id      String   @id @default(cuid())
+  runId   String
+  jobId   String?
+  ts      DateTime @default(now())
+  level   String   @default("info") // info | ok | warn | error
+  source  String   @default("system")
+  message String
+  run     Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+  job     Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([runId, ts])
+}
+
+// ---------------------------------------------------------------- Runners --
+
+model Runner {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  location    String    @default("")
+  kind        String    @default("cloud") // cloud | local
+  slots       Int       @default(2)
+  activeJobs  Int       @default(0)
+  status      String    @default("offline") // online | busy | offline
+  version     String    @default("")
+  tokenHash   String    @unique
+  tokenHint   String    @default("")
+  lastSeenAt  DateTime?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  jobs        Job[]
+
+  @@unique([workspaceId, name])
+}
