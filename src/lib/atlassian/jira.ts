@@ -136,3 +136,58 @@ export async function addComment(issueKey: string, body: string): Promise<{ id: 
     }
   );
 }
+
+/**
+ * Files an application defect the autopilot found, once a person approves it, and links it to
+ * the story whose acceptance criterion it breaks. The link is best-effort: a site without the
+ * "Relates" link type still gets the bug.
+ */
+export async function createBug(opts: {
+  projectKey: string;
+  storyKey: string;
+  summary: string;
+  description: string;
+  labels?: string[];
+}): Promise<{ id: string; key: string; linked: boolean }> {
+  if (!jiraConfigured()) throw new Error("Jira is not configured on this deployment.");
+  const base = jiraConfig().baseUrl;
+  const created = await httpJson<{ id: string; key: string }>("jira", `${base}/rest/api/3/issue`, {
+    method: "POST",
+    headers: { ...headers(), "content-type": "application/json" },
+    body: JSON.stringify({
+      fields: {
+        project: { key: opts.projectKey },
+        issuetype: { name: "Bug" },
+        summary: opts.summary.slice(0, 250),
+        labels: opts.labels ?? ["gantry", "autopilot"],
+        description: {
+          type: "doc",
+          version: 1,
+          content: opts.description.split("\n\n").map((para) => ({
+            type: "paragraph",
+            content: [{ type: "text", text: para }],
+          })),
+        },
+      },
+    }),
+  });
+
+  let linked = false;
+  if (opts.storyKey) {
+    try {
+      await httpJson("jira", `${base}/rest/api/3/issueLink`, {
+        method: "POST",
+        headers: { ...headers(), "content-type": "application/json" },
+        body: JSON.stringify({
+          type: { name: "Relates" },
+          inwardIssue: { key: created.key },
+          outwardIssue: { key: opts.storyKey.replace(/[^A-Za-z0-9_-]/g, "") },
+        }),
+      });
+      linked = true;
+    } catch {
+      /* the bug exists either way; the caller reports linked: false */
+    }
+  }
+  return { ...created, linked };
+}

@@ -15,6 +15,12 @@ import type { Memory, RecalledLesson } from "./types";
  * Only preventive lessons (heal, coverage) can be contradicted. A known-defect lesson is a
  * record of the world, so seeing the defect again reinforces it rather than disproving it —
  * and once the defect stops reproducing, the lesson is resolved and retires.
+ *
+ * With the workspace's lessonApproval set to "review", a new lesson is `proposed` and is not
+ * recalled until a person approves it. A rejected lesson stays rejected: the evidence can add
+ * to its hit count, but it never overrides the person's decision.
+ *
+ * Every change is written to LessonEvent, so the UI can show why a lesson is trusted.
  */
 
 export const RECALL_FLOOR = 0.3;
@@ -24,6 +30,26 @@ const CEILING = 0.98;
 const PREVENTIVE = new Set(["heal", "coverage", "planning"]);
 
 const clamp = (n: number) => Math.round(Math.min(CEILING, Math.max(0, n)) * 100) / 100;
+
+export type LessonEventKind =
+  | "created"
+  | "reinforced"
+  | "confirmed"
+  | "contradicted"
+  | "retired"
+  | "resolved"
+  | "approved"
+  | "rejected";
+
+export async function recordLessonEvent(
+  lessonId: string,
+  kind: LessonEventKind,
+  confidence: number,
+  runId = "",
+  note = ""
+) {
+  await db.lessonEvent.create({ data: { lessonId, kind, confidence, runId, note: note.slice(0, 500) } });
+}
 
 /** Lessons for one agent, strongest first. */
 export async function recall(workspaceId: string, scope: string, limit = 10): Promise<Memory> {
@@ -51,6 +77,8 @@ export interface LearningOutcome {
   retired: string[];
   /** Known-defect lessons whose defect no longer reproduces. */
   resolved: string[];
+  /** New lessons waiting for a person, when the workspace reviews lessons before use. */
+  proposed: string[];
 }
 
 /**
@@ -68,7 +96,17 @@ export async function learn(opts: {
   hits: Record<string, number>;
 }): Promise<LearningOutcome> {
   const { workspaceId, runId } = opts;
-  const outcome: LearningOutcome = { created: [], reinforced: [], confirmed: [], contradicted: [], retired: [], resolved: [] };
+  const outcome: LearningOutcome = {
+    created: [],
+    reinforced: [],
+    confirmed: [],
+    contradicted: [],
+    retired: [],
+    resolved: [],
+    proposed: [],
+  };
+  const ws = await db.workspace.findUnique({ where: { id: workspaceId }, select: { lessonApproval: true } });
+  const review = ws?.lessonApproval === "review";
   const applied = new Set(opts.applied);
   const seen = new Set(opts.learned.map((l) => l.key));
 
@@ -77,7 +115,7 @@ export async function learn(opts: {
     const existing = await db.lesson.findUnique({ where: { workspaceId_key: { workspaceId, key: l.key } } });
 
     if (!existing) {
-      await db.lesson.create({
+      const row = await db.lesson.create({
         data: {
           workspaceId,
           key: l.key,
@@ -87,10 +125,30 @@ export async function learn(opts: {
           evidence: l.evidence.slice(0, 1000),
           confidence: NEW_CONFIDENCE,
           hits,
+          status: review ? "proposed" : "active",
           sourceRunId: runId,
         },
       });
+      await recordLessonEvent(row.id, "created", NEW_CONFIDENCE, runId, l.evidence);
       outcome.created.push(l.key);
+      if (review) outcome.proposed.push(l.key);
+      continue;
+    }
+
+    // A person's decision stands: count the evidence, change nothing else.
+    if (existing.status === "rejected" || existing.status === "proposed") {
+      await db.lesson.update({
+        where: { id: existing.id },
+        data: {
+          hits: existing.hits + hits,
+          evidence: l.evidence.slice(0, 1000),
+          ...(existing.status === "proposed" ? { confidence: clamp(existing.confidence + 0.1) } : {}),
+        },
+      });
+      if (existing.status === "proposed") {
+        await recordLessonEvent(existing.id, "reinforced", clamp(existing.confidence + 0.1), runId, "seen again while awaiting approval");
+        outcome.reinforced.push(l.key);
+      }
       continue;
     }
 
@@ -110,7 +168,11 @@ export async function learn(opts: {
       },
     });
     (contradicted ? outcome.contradicted : outcome.reinforced).push(l.key);
-    if (retire) outcome.retired.push(l.key);
+    await recordLessonEvent(existing.id, contradicted ? "contradicted" : "reinforced", confidence, runId, l.evidence);
+    if (retire) {
+      outcome.retired.push(l.key);
+      await recordLessonEvent(existing.id, "retired", confidence, runId, "confidence fell below the floor");
+    }
   }
 
   // Every applied lesson counts the application; the ones whose problem stayed away are confirmed.
@@ -127,8 +189,14 @@ export async function learn(opts: {
         ...(resolved ? { status: "retired", evidence: "No longer reproduces — the defect appears to be fixed." } : {}),
       },
     });
-    if (held) outcome.confirmed.push(key);
-    if (resolved) outcome.resolved.push(key);
+    if (held) {
+      outcome.confirmed.push(key);
+      await recordLessonEvent(row.id, "confirmed", clamp(row.confidence + 0.1), runId, "applied, and the problem did not recur");
+    }
+    if (resolved) {
+      outcome.resolved.push(key);
+      await recordLessonEvent(row.id, "resolved", row.confidence, runId, "the defect no longer reproduces");
+    }
   }
 
   return outcome;

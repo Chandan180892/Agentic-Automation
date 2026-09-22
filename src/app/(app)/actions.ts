@@ -403,6 +403,25 @@ export async function publish(publicationId: string): Promise<void> {
         where: { id: pub.id },
         data: { status: "published", publishedAt: new Date(), resultJson: JSON.stringify(created) },
       });
+    } else if (pub.target === "jira-bug") {
+      if (!payload.projectKey) throw new Error("Set a Jira project key in Settings before filing bugs.");
+      const { createBug } = await import("@/lib/atlassian/jira");
+      const bug = await createBug({
+        projectKey: payload.projectKey,
+        storyKey: payload.storyKey,
+        summary: payload.summary,
+        description: payload.description,
+      });
+      await logEvent(
+        runId,
+        `filed ${bug.key} for ${payload.storyKey}${bug.linked ? "" : " (could not link it to the story)"}`,
+        "ok",
+        "jira"
+      );
+      await db.publication.update({
+        where: { id: pub.id },
+        data: { status: "published", publishedAt: new Date(), resultJson: JSON.stringify(bug) },
+      });
     } else if (pub.target === "bitbucket-branch") {
       const { commitFiles, createPullRequest } = await import("@/lib/atlassian/bitbucket");
       const files = pub.run.assets
@@ -446,16 +465,18 @@ export async function publish(publicationId: string): Promise<void> {
   }
 
   revalidatePath(`/runs/${runId}`);
+  revalidatePath(`/autopilot/${runId}`);
   revalidatePath("/results");
 }
 
 // --------------------------------------------------------------- autopilot --
 
 /**
- * Starts one self-learning cycle over the sprint and returns straight away. The cycle runs
- * after the response, so the browser lands on the live view while the agents work.
+ * Starts the autopilot on a sprint and returns straight away; the work runs after the response,
+ * so the browser lands on the live view while the agents work. `untilStable` keeps starting
+ * cycles until nothing new is learned (at most `AUTOPILOT_MAX_CYCLES`, default 5).
  */
-export async function startAutopilot(sprintId: string): Promise<void> {
+async function launchAutopilot(sprintId: string, untilStable: boolean): Promise<void> {
   const { workspace } = await ctx();
   const sprint = await db.sprint.findFirst({
     where: { id: sprintId, workspaceId: workspace.id },
@@ -466,12 +487,56 @@ export async function startAutopilot(sprintId: string): Promise<void> {
   const busy = await db.run.findFirst({ where: { workspaceId: workspace.id, agent: "autopilot", status: "running" } });
   if (busy) redirect(`/autopilot/${busy.id}`);
 
-  const { startCycle, runCycleSafely } = await import("@/lib/agents/autopilot");
-  const run = await startCycle({ workspaceId: workspace.id, sprintId: sprint.id });
-  after(() => runCycleSafely(run.id));
+  const { startCycle, runCycleSafely, runCampaign } = await import("@/lib/agents/autopilot");
+  const campaign = untilStable
+    ? { id: `c-${Date.now().toString(36)}`, index: 1, max: Math.max(2, Math.min(10, Number(process.env.AUTOPILOT_MAX_CYCLES) || 5)) }
+    : undefined;
+  const run = await startCycle({ workspaceId: workspace.id, sprintId: sprint.id, campaign });
+  after(async () => {
+    if (campaign) await runCampaign({ firstRunId: run.id, workspaceId: workspace.id, sprintId: sprint.id, campaign });
+    else await runCycleSafely(run.id);
+  });
 
   revalidatePath("/autopilot");
   redirect(`/autopilot/${run.id}`);
+}
+
+export async function startAutopilot(sprintId: string): Promise<void> {
+  await launchAutopilot(sprintId, false);
+}
+
+export async function startAutopilotUntilStable(sprintId: string): Promise<void> {
+  await launchAutopilot(sprintId, true);
+}
+
+/** Asks a multi-cycle run to stop once the cycle in progress finishes. */
+export async function stopAutopilot(runId: string): Promise<void> {
+  const { workspace } = await ctx();
+  await db.run.updateMany({ where: { id: runId, workspaceId: workspace.id, agent: "autopilot" }, data: { stopRequested: true } });
+  await db.event.create({
+    data: { runId, source: "autopilot", stage: "autopilot", level: "warn", message: "stop requested — this cycle finishes, no further cycle starts" },
+  });
+  revalidatePath(`/autopilot/${runId}`);
+}
+
+/** A person's decision on a proposed lesson. Rejection sticks even if the evidence recurs. */
+export async function reviewLesson(lessonId: string, decision: "approve" | "reject"): Promise<void> {
+  const { workspace } = await ctx();
+  const lesson = await db.lesson.findFirst({ where: { id: lessonId, workspaceId: workspace.id } });
+  if (!lesson) throw new Error("Lesson not found in this workspace.");
+  const status = decision === "approve" ? "active" : "rejected";
+  await db.lesson.update({ where: { id: lesson.id }, data: { status } });
+  const { recordLessonEvent } = await import("@/lib/agents/memory");
+  await recordLessonEvent(lesson.id, decision === "approve" ? "approved" : "rejected", lesson.confidence, "", "decided by a person");
+  revalidatePath("/autopilot");
+}
+
+export async function saveLearningSettings(formData: FormData): Promise<void> {
+  const { workspace } = await ctx();
+  const mode = formData.get("lessonApproval") === "review" ? "review" : "auto";
+  await db.workspace.update({ where: { id: workspace.id }, data: { lessonApproval: mode } });
+  revalidatePath("/autopilot");
+  revalidatePath("/settings");
 }
 
 /** Forgets one lesson. The learner may teach it again if the evidence comes back. */

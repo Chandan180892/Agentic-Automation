@@ -8,8 +8,9 @@ import { PageBar, Pane } from "@/components/page-bar";
 import { Card, CardHeader, CardBody, Pill, Sub, Button, Empty, Meter, buttonClass } from "@/components/ui";
 import { PHASES, type CycleOutput } from "@/lib/agents/autopilot";
 import { agentsAreLive } from "@/lib/agents/runtime";
-import { startAutopilot, forgetLesson } from "../actions";
+import { startAutopilot, startAutopilotUntilStable, forgetLesson, reviewLesson, saveLearningSettings } from "../actions";
 import { Trend } from "./trend";
+import { History } from "./history";
 
 export const metadata: Metadata = { title: "Autopilot" };
 export const dynamic = "force-dynamic";
@@ -35,11 +36,15 @@ export default async function AutopilotPage() {
     }),
     db.lesson.findMany({
       where: { workspaceId: workspace.id },
-      orderBy: [{ status: "asc" }, { confidence: "desc" }],
+      orderBy: [{ confidence: "desc" }],
+      include: { events: { orderBy: { at: "asc" }, take: 40 } },
     }),
   ]);
 
   const running = cycles.find((c) => c.status === "running");
+  const STATUS_ORDER = { proposed: 0, active: 1, retired: 2, rejected: 3 } as Record<string, number>;
+  lessons.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
+  const proposed = lessons.filter((l) => l.status === "proposed").length;
   const finished = cycles
     .filter((c) => c.status === "succeeded")
     .map((c) => ({ run: c, out: parseJson<CycleOutput | null>(c.outputJson, null) }))
@@ -62,9 +67,16 @@ export default async function AutopilotPage() {
             Watch cycle {parseJson<{ cycle: number }>(running.inputJson, { cycle: 0 }).cycle} live →
           </Link>
         ) : sprint && sprint._count.stories > 0 ? (
-          <form action={startAutopilot.bind(null, sprint.id)}>
-            <Button variant="primary">Start a cycle on {sprint.name}</Button>
-          </form>
+          <>
+            <form action={startAutopilot.bind(null, sprint.id)}>
+              <Button>Run one cycle</Button>
+            </form>
+            <form action={startAutopilotUntilStable.bind(null, sprint.id)}>
+              <Button variant="primary" title="Keeps starting cycles until one learns nothing new">
+                Run {sprint.name} until stable
+              </Button>
+            </form>
+          </>
         ) : (
           <Link href="/sprint" className={buttonClass("primary")}>
             Create a sprint first
@@ -127,6 +139,22 @@ export default async function AutopilotPage() {
               <Pill tone="idle" dot={false}>
                 {lessons.filter((l) => l.status === "active").length} active
               </Pill>
+              {proposed > 0 && <Pill tone="heal">{proposed} awaiting approval</Pill>}
+              <form action={saveLearningSettings} className="ml-auto flex items-center gap-1.5">
+                <label htmlFor="lessonApproval" className="text-[11.5px] text-muted">
+                  New lessons
+                </label>
+                <select
+                  id="lessonApproval"
+                  name="lessonApproval"
+                  defaultValue={workspace.lessonApproval}
+                  className="rounded-md border border-line bg-surface px-1.5 py-1 text-[11.5px]"
+                >
+                  <option value="auto">apply automatically</option>
+                  <option value="review">wait for my approval</option>
+                </select>
+                <Button size="sm">Save</Button>
+              </form>
             </CardHeader>
             {lessons.length === 0 ? (
               <Empty title="Nothing learned yet">
@@ -136,21 +164,38 @@ export default async function AutopilotPage() {
             ) : (
               <ul className="divide-y divide-line-soft">
                 {lessons.map((l) => (
-                  <li key={l.id} className={`px-4 py-3 ${l.status === "retired" ? "opacity-55" : ""}`}>
+                  <li key={l.id} className={`px-4 py-3 ${l.status === "retired" || l.status === "rejected" ? "opacity-55" : ""}`}>
                     <div className="flex flex-wrap items-center gap-2">
                       <code className="font-mono text-[12px] font-semibold">{l.key}</code>
                       <Pill tone="accent" dot={false}>→ {l.scope}</Pill>
                       <Pill tone={l.category === "review" ? "fail" : l.category === "coverage" ? "live" : "heal"} dot={false}>
                         {l.category}
                       </Pill>
-                      {l.status === "retired" && <Pill tone="idle">retired</Pill>}
-                      <form action={forgetLesson.bind(null, l.id)} className="ml-auto">
-                        <Button variant="ghost" size="sm" title="Forget this lesson">
-                          Forget
-                        </Button>
-                      </form>
+                      {l.status !== "active" && (
+                        <Pill tone={l.status === "proposed" ? "heal" : "idle"}>
+                          {l.status === "proposed" ? "awaiting approval" : l.status}
+                        </Pill>
+                      )}
+                      <div className="ml-auto flex items-center gap-1">
+                        {l.status === "proposed" && (
+                          <>
+                            <form action={reviewLesson.bind(null, l.id, "approve")}>
+                              <Button variant="primary" size="sm">Approve</Button>
+                            </form>
+                            <form action={reviewLesson.bind(null, l.id, "reject")}>
+                              <Button size="sm" title="The learner will not propose it again">Reject</Button>
+                            </form>
+                          </>
+                        )}
+                        <form action={forgetLesson.bind(null, l.id)}>
+                          <Button variant="ghost" size="sm" title="Delete it; the learner may learn it again">
+                            Forget
+                          </Button>
+                        </form>
+                      </div>
                     </div>
                     <p className="mt-1.5 text-[12.5px] leading-[1.55]">{l.rule}</p>
+                    {l.events.length > 1 && <History events={l.events.map((e) => ({ kind: e.kind, confidence: e.confidence, at: e.at.toISOString(), note: e.note }))} />}
                     <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-3">
                       <Meter value={l.confidence * 100} tone={l.confidence >= 0.7 ? "pass" : l.confidence >= 0.4 ? "accent" : "heal"} />
                       <span className="font-mono text-[11px] text-muted">

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { z } from "zod";
 import { db } from "@/lib/db";
 import { parseJson } from "@/lib/utils";
@@ -56,8 +57,29 @@ export interface CycleMetrics {
   lessonsApplied: number;
 }
 
+/** An application defect the cycle found, and what happened to its Jira bug proposal. */
+export interface CycleBug {
+  storyKey: string;
+  criterion: string;
+  failure: string;
+  /** proposed: new this cycle · pending: proposed earlier, not yet approved · filed: already in Jira */
+  status: "proposed" | "pending" | "filed";
+  publicationId: string;
+  jiraKey: string;
+}
+
+export interface Campaign {
+  id: string;
+  index: number;
+  max: number;
+}
+
 export interface CycleOutput {
   cycle: number;
+  campaign: Campaign | null;
+  /** Nothing new was learned and nothing needed healing or revising: another cycle would repeat this one. */
+  stable: boolean;
+  bugs: CycleBug[];
   mode: "live" | "simulated";
   metrics: CycleMetrics;
   applied: { key: string; scope: string; rule: string; confidence: number }[];
@@ -75,7 +97,7 @@ function defaultPaceMs() {
   return agentsAreLive() ? 0 : 450;
 }
 
-export async function startCycle(opts: { workspaceId: string; sprintId: string }) {
+export async function startCycle(opts: { workspaceId: string; sprintId: string; campaign?: Campaign }) {
   const cycle = (await db.run.count({ where: { workspaceId: opts.workspaceId, agent: "autopilot" } })) + 1;
   const run = await db.run.create({
     data: {
@@ -84,7 +106,7 @@ export async function startCycle(opts: { workspaceId: string; sprintId: string }
       agent: "autopilot",
       mode: "batch",
       status: "running",
-      inputJson: JSON.stringify({ cycle }),
+      inputJson: JSON.stringify({ cycle, campaign: opts.campaign ?? null }),
     },
   });
   for (const [n, p] of PHASES.entries()) {
@@ -101,7 +123,10 @@ export async function runCycle(opts: { runId: string; paceMs?: number }): Promis
   const run = await db.run.findUniqueOrThrow({ where: { id: runId } });
   const workspaceId = run.workspaceId;
   const sprintId = run.sprintId!;
-  const cycle = parseJson<{ cycle: number }>(run.inputJson, { cycle: 1 }).cycle;
+  const { cycle, campaign } = parseJson<{ cycle: number; campaign: Campaign | null }>(run.inputJson, {
+    cycle: 1,
+    campaign: null,
+  });
 
   const log = async (source: string, message: string, level: "info" | "ok" | "warn" | "error" = "info") => {
     await db.event.create({ data: { runId, source, stage: source, level, message } });
@@ -130,6 +155,9 @@ export async function runCycle(opts: { runId: string; paceMs?: number }): Promis
 
   const out: CycleOutput = {
     cycle,
+    campaign,
+    stable: false,
+    bugs: [],
     mode: agentsAreLive() ? "live" : "simulated",
     metrics: {
       storiesCommitted: 0,
@@ -355,6 +383,9 @@ export async function runCycle(opts: { runId: string; paceMs?: number }): Promis
       t.failure = current.failure;
       t.cause = current.cause;
     }
+    // Keep the running counts current so the live view moves while the phase runs.
+    out.metrics.healed = out.tests.filter((x) => x.final === "healed").length;
+    out.metrics.appBugs = out.tests.filter((x) => x.final === "failed" && x.cause === "app-bug").length;
     await save();
   }
   out.metrics.healed = out.tests.filter((t) => t.final === "healed").length;
@@ -457,8 +488,67 @@ export async function runCycle(opts: { runId: string; paceMs?: number }): Promis
     },
   });
   out.report = reported.output;
+
+  // Each application defect becomes one proposed Jira bug — once. A defect already proposed or
+  // filed in an earlier cycle is referenced, not proposed again.
+  const ws = await db.workspace.findUniqueOrThrow({ where: { id: workspaceId } });
+  const defects = new Map<string, TestResult>();
+  for (const t of out.tests) {
+    if (t.final === "failed" && t.cause === "app-bug") defects.set(`${t.storyKey}|${t.criterion}`, t);
+  }
+  for (const t of defects.values()) {
+    const fingerprint = `defect-${createHash("sha1").update(`${workspaceId}|${t.storyKey}|${t.criterion}`).digest("hex").slice(0, 16)}`;
+    const failure = (t.failure ?? "").split("\n").slice(0, 4).join("\n");
+    const earlier = await db.publication.findFirst({
+      where: {
+        target: "jira-bug",
+        run: { workspaceId },
+        payloadJson: { contains: fingerprint },
+        status: { in: ["proposed", "approved", "published"] },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (earlier) {
+      const key = parseJson<{ key?: string }>(earlier.resultJson, {}).key ?? "";
+      out.bugs.push({
+        storyKey: t.storyKey,
+        criterion: t.criterion,
+        failure,
+        status: earlier.status === "published" ? "filed" : "pending",
+        publicationId: earlier.id,
+        jiraKey: key,
+      });
+      await log("report", `${t.storyKey}: defect already ${earlier.status === "published" ? `filed as ${key}` : "proposed — awaiting approval"}`, "info");
+      continue;
+    }
+    const pub = await db.publication.create({
+      data: {
+        runId,
+        target: "jira-bug",
+        payloadJson: JSON.stringify({
+          fingerprint,
+          projectKey: ws.jiraProjectKey,
+          storyKey: t.storyKey,
+          summary: `[${t.storyKey}] ${t.criterion}`.slice(0, 240),
+          description: [
+            `Acceptance criterion not met: ${t.criterion}`,
+            `Found by the Gantry autopilot, cycle ${cycle}. The test is correct; the application does not do what the criterion requires. The test was not changed.`,
+            `Test: ${t.name}\nSpec: ${t.path}`,
+            `Failure:\n${failure}`,
+          ].join("\n\n"),
+        }),
+      },
+    });
+    out.bugs.push({ storyKey: t.storyKey, criterion: t.criterion, failure, status: "proposed", publicationId: pub.id, jiraKey: "" });
+    await log("report", `${t.storyKey}: proposed a Jira bug — approve it to file it`, "warn");
+  }
   await save();
-  await end("report", reported.output.headline);
+  await end(
+    "report",
+    `${reported.output.headline}${
+      out.bugs.some((b) => b.status === "proposed") ? ` ${out.bugs.filter((b) => b.status === "proposed").length} Jira bug(s) proposed.` : ""
+    }`
+  );
 
   // -------------------------------------------------------------- learn --
   await begin("learn");
@@ -506,6 +596,7 @@ export async function runCycle(opts: { runId: string; paceMs?: number }): Promis
   await save();
   await end("learn", learned.summary);
 
+  out.stable = outcome.created.length === 0 && out.metrics.healed === 0 && out.metrics.revisions === 0;
   await db.run.update({
     where: { id: runId },
     data: { status: "succeeded", finishedAt: new Date(), outputJson: JSON.stringify(out) },
@@ -525,4 +616,70 @@ export async function runCycleSafely(runId: string, paceMs?: number) {
     await db.run.update({ where: { id: runId }, data: { status: "failed", error: msg, finishedAt: new Date() } });
     return null;
   }
+}
+
+/**
+ * Runs cycles back to back until the loop is stable — nothing new learned, nothing healed,
+ * nothing revised — or `max` cycles have run, or a person asks it to stop. The first cycle
+ * must already have been started with `startCycle`.
+ */
+export async function runCampaign(opts: {
+  firstRunId: string;
+  workspaceId: string;
+  sprintId: string;
+  campaign: Campaign;
+  paceMs?: number;
+}): Promise<{ cycles: string[]; reason: "stable" | "max" | "stopped" | "failed" | "awaiting-approval" }> {
+  const cycles = [opts.firstRunId];
+  let runId = opts.firstRunId;
+  for (let i = 1; ; i++) {
+    const out = await runCycleSafely(runId, opts.paceMs);
+    const note = (message: string, level: "ok" | "warn" = "ok") =>
+      db.event.create({ data: { runId, source: "autopilot", stage: "autopilot", level, message } });
+    if (!out) return { cycles, reason: "failed" };
+    if (out.stable) {
+      await note(`stable after ${i} cycle(s) — nothing new to learn, so the run stops here`);
+      return { cycles, reason: "stable" };
+    }
+    // Nothing new was learned, and what would help is waiting on a person: another cycle
+    // would only repeat this one.
+    const pending = await db.lesson.count({ where: { workspaceId: opts.workspaceId, status: "proposed" } });
+    if (pending > 0 && (out.learning?.created.length ?? 0) === 0) {
+      await note(`${pending} lesson(s) await approval — stopping until a person reviews them`, "warn");
+      return { cycles, reason: "awaiting-approval" };
+    }
+    if (i >= opts.campaign.max) {
+      await note(`reached the limit of ${opts.campaign.max} cycles without settling`, "warn");
+      return { cycles, reason: "max" };
+    }
+    const current = await db.run.findUnique({ where: { id: runId }, select: { stopRequested: true } });
+    if (current?.stopRequested) {
+      await note("stopped on request", "warn");
+      return { cycles, reason: "stopped" };
+    }
+    await note(`not stable yet — starting cycle ${out.cycle + 1} with what this one learned`);
+    const next = await startCycle({
+      workspaceId: opts.workspaceId,
+      sprintId: opts.sprintId,
+      campaign: { ...opts.campaign, index: i + 1 },
+    });
+    cycles.push(next.id);
+    runId = next.id;
+  }
+}
+
+/** Every cycle of one multi-cycle run, in order. */
+export async function campaignCycles(workspaceId: string, campaignId: string) {
+  const rows = await db.run.findMany({
+    where: { workspaceId, agent: "autopilot", inputJson: { contains: campaignId } },
+    select: { id: true, status: true, inputJson: true, outputJson: true },
+    orderBy: { startedAt: "asc" },
+  });
+  return rows
+    .map((r) => {
+      const input = parseJson<{ cycle: number; campaign: Campaign | null }>(r.inputJson, { cycle: 0, campaign: null });
+      const output = parseJson<CycleOutput | null>(r.outputJson, null);
+      return { id: r.id, status: r.status, cycle: input.cycle, campaign: input.campaign, stable: output?.stable ?? false };
+    })
+    .filter((r) => r.campaign?.id === campaignId);
 }

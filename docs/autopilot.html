@@ -147,7 +147,7 @@ select { font: 500 12px var(--sans); color: var(--ink); background: var(--surfac
 .lesson.retired { opacity: .5; }
 .lesson-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .lesson-h code { font-size: 12px; font-weight: 600; }
-.lesson-h .btn { margin-left: auto; }
+.lesson.rejected { opacity: .5; }
 .lesson p { font-size: 12.5px; line-height: 1.55; }
 .meter-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
 .meter { height: 5px; background: var(--surface-3); border-radius: 999px; overflow: hidden; }
@@ -183,6 +183,41 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
 
 .explain { font-size: 12.5px; line-height: 1.6; color: var(--ink-2); max-width: 110ch; }
 .note { font-size: 11.5px; color: var(--muted); }
+
+/* agent map */
+.map-wrap { overflow-x: auto; }
+.map { min-width: 760px; width: 100%; display: block; }
+.map .node { fill: var(--surface); stroke: var(--line); stroke-width: 1.3; transition: stroke .2s; }
+.map .node.done { stroke: var(--pass); }
+.map .node.active { stroke: var(--live); stroke-width: 2; }
+.map .node.blocked { stroke: var(--heal); }
+.map .halo { fill: var(--live-soft); animation: halo 1s ease-in-out infinite alternate; }
+@keyframes halo { from { opacity: .35; } to { opacity: 1; } }
+.map .edge { stroke: var(--line); stroke-width: 1.6; }
+.map .edge.done { stroke: var(--accent); }
+.map .loop { fill: none; stroke: var(--line); stroke-width: 1.6; stroke-dasharray: 4 4; }
+.map .loop.done { stroke: var(--pass); stroke-dasharray: none; }
+.map .role { fill: var(--muted); font: 9.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.map .name { fill: var(--ink); font: 600 10.5px var(--mono); }
+.map .stat { fill: var(--muted); font: 10px var(--mono); }
+.map .stat.on { fill: var(--live); }
+.map .sub { fill: var(--surface-3); stroke: var(--line); }
+.map .sub.on { fill: var(--live); stroke: var(--live); }
+.map .sub.done { fill: var(--pass); stroke: var(--pass); }
+.map .arrow { fill: var(--muted); }
+.map g.pending { opacity: .5; }
+
+.campaign { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 9px 14px; border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: 10px; font-size: 12px; color: var(--ink-2); }
+.campaign b { color: var(--accent); }
+.campaign .dots { display: flex; gap: 4px; }
+.campaign .dots span { min-width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; font: 600 11px var(--mono); padding: 0 4px; }
+.campaign .dots span.cur { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.bug { padding: 11px 0; border-bottom: 1px solid var(--line-soft); display: grid; gap: 5px; }
+.bug:first-child { padding-top: 0; } .bug:last-child { border-bottom: 0; padding-bottom: 0; }
+.bug-h { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 12.5px; }
+.bug-h b { font: 600 12px var(--mono); }
+.bug-h .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.bug pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 11px/1.55 var(--mono); color: var(--muted); }
 
 @media (max-width: 1100px) {
   .phases { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -224,10 +259,28 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
         <option value="1" selected>Normal</option>
         <option value="0.35">Fast</option>
       </select>
+      <label class="note" for="approval">New lessons</label>
+      <select id="approval">
+        <option value="auto" selected>apply automatically</option>
+        <option value="review">wait for my approval</option>
+      </select>
       <button class="btn" id="reset" type="button">Reset memory</button>
-      <button class="btn primary" id="run" type="button">Run cycle 2</button>
+      <button class="btn" id="run" type="button">Run one cycle</button>
+      <button class="btn primary" id="auto" type="button">Run until stable</button>
     </div>
   </header>
+
+  <div class="campaign" id="campaign" hidden></div>
+
+  <section class="card">
+    <div class="card-h">
+      <h3>Agents at work</h3>
+      <span class="note">who holds the work right now, and what each one produced</span>
+    </div>
+    <div class="card-b blueprint" style="padding-block:10px">
+      <div class="map-wrap" id="map"></div>
+    </div>
+  </section>
 
   <section class="card">
     <div class="card-h">
@@ -298,6 +351,13 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
         <div class="card-h"><h3>Report</h3></div>
         <div class="card-b" id="report"><p class="muted" style="font-size:12.5px">cycle-reporter writes this at the end of the cycle.</p></div>
       </section>
+      <section class="card">
+        <div class="card-h">
+          <h3>Application defects → Jira</h3>
+          <span class="note">proposed once each · nothing is filed until you approve</span>
+        </div>
+        <div class="card-b" id="bugs"><p class="muted" style="font-size:12.5px">Defects the heal phase escalates show up here as proposed Jira bugs.</p></div>
+      </section>
     </div>
   </section>
 
@@ -317,7 +377,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
     <div class="card-b" style="display:grid;gap:8px">
       <p class="explain">Every heal, verifier revision and application defect becomes a <b>signal</b>. The learner reduces signals to root causes and stores one <b>lesson</b> per cause, scoped to the agent that could have prevented it — <code>spec-author</code> for how tests are written, <code>story-analyzer</code> for which behaviours exist, <code>qe-auto-heal</code> for known defects. The next cycle injects each lesson into that agent's turn.</p>
       <p class="explain">Lessons correct themselves: seen again → <b>reinforced</b>; applied and the problem stayed away → <b>confirmed</b>; applied but the problem came back → <b>contradicted</b>, losing confidence until it <b>retires</b>. A known-defect lesson <b>resolves</b> when the defect stops reproducing.</p>
-      <p class="explain">Learning never touches an assertion. A test that caught a real defect stays red until someone fixes the application — try <b>Mark fixed</b> on a not-met row, then run another cycle.</p>
+      <p class="explain">Learning never touches an assertion. A test that caught a real defect stays red until someone fixes the application — try <b>Mark fixed</b> on a not-met row, then run another cycle. Switch <b>New lessons</b> to “wait for my approval” and <b>Reset memory</b> to see learning pause until a person approves what it proposes.</p>
     </div>
   </section>
 </div>
@@ -386,6 +446,9 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
   let history = [];       // completed cycles' metrics
   let cycleNo = 0;
   let running = false;
+  let bugs = [];          // { storyKey, criterion, failure, status: proposed|approved, cycle }
+  let campaign = null;    // { index, max, note }
+  let stopAsked = false;
   let cur = null;         // the cycle being shown
   let t0 = 0;
 
@@ -472,19 +535,23 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
 
   function renderMemory(flashKeys = []) {
     const active = lessons.filter((l) => l.status === "active").length;
-    $("mem-count").textContent = `${active} active`;
+    const waiting = lessons.filter((l) => l.status === "proposed").length;
+    $("mem-count").textContent = `${active} active${waiting ? ` · ${waiting} awaiting approval` : ""}`;
     if (!lessons.length) {
       $("memory").innerHTML = `<p class="muted" style="font-size:12.5px">Nothing learned yet. Lessons appear after the first cycle's Learn phase — one per root cause.</p>`;
       return;
     }
-    const sorted = [...lessons].sort((a, b) => (a.status === b.status ? b.confidence - a.confidence : a.status === "active" ? -1 : 1));
+    const ORDER = { proposed: 0, active: 1, retired: 2, rejected: 3 };
+    const sorted = [...lessons].sort((a, b) => (a.status === b.status ? b.confidence - a.confidence : ORDER[a.status] - ORDER[b.status]));
     $("memory").innerHTML = sorted.map((l) => {
       const cat = { heal: "heal", coverage: "live", review: "fail" }[l.category];
       const lvl = l.confidence >= 0.7 ? "hi" : l.confidence < 0.4 ? "lo" : "";
       return `<div class="lesson ${l.status} ${flashKeys.includes(l.key) ? "flash" : ""}">
         <div class="lesson-h"><code>${esc(l.key)}</code><span class="pill accent">→ ${l.scope}</span><span class="pill ${cat}">${l.category}</span>
-          ${l.status !== "active" ? `<span class="pill">${l.status}</span>` : ""}
-          <button class="btn sm ghost" type="button" data-forget="${esc(l.key)}" ${running ? "disabled" : ""}>Forget</button></div>
+          ${l.status === "proposed" ? `<span class="pill heal dot">awaiting approval</span>` : l.status !== "active" ? `<span class="pill">${l.status}</span>` : ""}
+          <span style="margin-left:auto;display:flex;gap:4px">
+          ${l.status === "proposed" ? `<button class="btn sm primary" type="button" data-approve="${esc(l.key)}">Approve</button><button class="btn sm" type="button" data-reject="${esc(l.key)}" title="The learner will not propose it again">Reject</button>` : ""}
+          <button class="btn sm ghost" type="button" data-forget="${esc(l.key)}" ${running ? "disabled" : ""}>Forget</button></span></div>
         <p>${esc(l.rule)}</p>
         <div class="meter-row"><div class="meter"><i class="${lvl}" style="width:${l.confidence * 100}%"></i></div>
           <span>${l.confidence.toFixed(2)} · seen ${l.hits}× · applied ${l.applied}× · held ${l.confirmed}×</span></div></div>`;
@@ -585,7 +652,88 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
     });
   }
 
+  const MAP_NODES = [
+    ["recall", "memory"], ["plan", "sprint-planner"], ["automate", "qe-pipeline"], ["execute", "executor"],
+    ["heal", "qe-auto-heal"], ["review", "req-reviewer"], ["report", "cycle-reporter"], ["learn", "learner"],
+  ];
+  const SUBS = ["story-analyzer", "clarify", "asset-resolver", "spec-author", "verifier", "reviewer"];
+  let activeSub = -1;
+  function mapStat(phase) {
+    const m = cur?.metrics;
+    if (!m) return "";
+    return {
+      recall: `${m.lessonsApplied} lesson${m.lessonsApplied === 1 ? "" : "s"} in`,
+      plan: cur.stages.plan.status === "passed" ? "5 committed" : "",
+      automate: `${cur.stories.filter((s) => s.pipeline === "needs review").length}/5 specced`,
+      execute: m.testsRun ? `${m.testsRun} tests` : "",
+      heal: cur.stages.heal.status !== "pending" ? `${m.healed} healed` : "",
+      review: m.criteriaTotal ? `${m.criteriaMet}/${m.criteriaTotal} met` : "",
+      report: cur.report ? `${cur.newBugs ?? 0} bug${cur.newBugs === 1 ? "" : "s"} to file` : "",
+      learn: cur.learned ? `+${cur.learned.created} lesson(s)` : "",
+    }[phase];
+  }
+  function renderMap() {
+    const X = (i) => 8 + i * 128, T = 26, NW = 112, NH = 62;
+    const st = (ph) => cur?.stages[ph]?.status ?? "pending";
+    let h = `<svg class="map" viewBox="0 0 1032 150" role="img" aria-label="Agents in this cycle and which one is working">
+      <defs><marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0 0 8 4 0 8z"/></marker></defs>`;
+    for (let i = 1; i < MAP_NODES.length; i++) {
+      const done = ["passed", "blocked"].includes(st(MAP_NODES[i - 1][0]));
+      h += `<line class="edge ${done ? "done" : ""}" x1="${X(i - 1) + NW}" x2="${X(i) - 3}" y1="${T + NH / 2}" y2="${T + NH / 2}" marker-end="url(#ar)"/>`;
+    }
+    const learnDone = st("learn") === "passed";
+    h += `<path class="loop ${learnDone ? "done" : ""}" d="M${X(7) + NW / 2} ${T + NH} V${T + NH + 30} H${X(0) + NW / 2} V${T + NH + 4}" marker-end="url(#ar)"/>
+      <text class="stat" x="516" y="${T + NH + 25}" text-anchor="middle">lessons feed the next cycle${cur?.learned ? ` · +${cur.learned.created} new, ${cur.learned.confirmed} confirmed` : ""}</text>`;
+    MAP_NODES.forEach(([ph, name], i) => {
+      const s = st(ph);
+      const cls = s === "running" ? "active" : s === "passed" ? "done" : s === "blocked" ? "blocked" : "";
+      const stat = mapStat(ph);
+      h += `<g class="${s === "pending" ? "pending" : ""}">`;
+      if (s === "running") h += `<rect class="halo" x="${X(i) - 4}" y="${T - 4}" width="${NW + 8}" height="${NH + 8}" rx="12"/>`;
+      h += `<rect class="node ${cls}" x="${X(i)}" y="${T}" width="${NW}" height="${NH}" rx="9"/>
+        <text class="role" x="${X(i) + 10}" y="${T - 8}">${ph}</text>
+        <text class="name" x="${X(i) + 10}" y="${T + 20}">${name}</text>`;
+      if (ph === "automate") {
+        SUBS.forEach((sub, k) => {
+          const on = s === "running" && activeSub === k;
+          h += `<circle class="sub ${on ? "on" : s === "passed" ? "done" : ""}" cx="${X(i) + 14 + k * 15}" cy="${T + 34}" r="${on ? 5 : 4}"><title>${sub}</title></circle>`;
+        });
+        h += `<text class="stat ${s === "running" ? "on" : ""}" x="${X(i) + 10}" y="${T + 54}">${s === "running" && activeSub >= 0 ? SUBS[activeSub] : stat}</text>`;
+      } else {
+        h += `<text class="stat ${s === "running" ? "on" : ""}" x="${X(i) + 10}" y="${T + 40}">${esc(s === "running" && !stat ? "working…" : stat)}</text>
+          <text class="stat" x="${X(i) + 10}" y="${T + 54}">${ph === "heal" && s !== "pending" ? `${cur.metrics.appBugs} app bug${cur.metrics.appBugs === 1 ? "" : "s"}` : s === "passed" ? "✓ done" : s === "blocked" ? "needs attention" : s === "running" ? "● active" : ""}</text>`;
+      }
+      h += `</g>`;
+    });
+    $("map").innerHTML = h + "</svg>";
+  }
+  function renderBugs() {
+    if (!bugs.length) {
+      $("bugs").innerHTML = `<p class="muted" style="font-size:12.5px">Defects the heal phase escalates show up here as proposed Jira bugs.</p>`;
+      return;
+    }
+    $("bugs").innerHTML = bugs.map((b, i) => {
+      const fixed = !DEFECTS[b.criterion];
+      const state = b.status === "approved"
+        ? `<span class="pill pass dot">approved — the app files it in Jira</span>`
+        : `<span class="pill heal dot">proposed in cycle ${b.cycle}</span><button class="btn sm primary" type="button" data-file="${i}">Approve</button>`;
+      return `<div class="bug"><div class="bug-h"><b>${b.storyKey}</b><span>${esc(b.criterion)}</span>
+        <span class="right">${fixed ? `<span class="pill pass">fixed in the app</span>` : ""}${state}</span></div>
+        <pre>${esc(b.failure)}</pre></div>`;
+    }).join("");
+  }
+  function renderCampaign() {
+    const el = $("campaign");
+    if (!campaign) { el.hidden = true; return; }
+    el.hidden = false;
+    const dots = Array.from({ length: campaign.index }, (_, k) => `<span class="${k + 1 === campaign.index ? "cur" : ""}">${campaign.first + k}</span>`).join("");
+    el.innerHTML = `<b>Run until stable</b><span>cycle ${campaign.index} of at most ${campaign.max}</span><span class="dots">${dots}</span>
+      <span>${esc(campaign.note)}</span>
+      ${running && !stopAsked ? `<button class="btn sm" type="button" id="stop" style="margin-left:auto">Stop after this cycle</button>` : ""}`;
+  }
+
   function renderAll(flash) {
+    renderMap(); renderBugs(); renderCampaign();
     renderPhases(); renderMetrics(); renderStories(); renderMemory(flash); renderReview(); renderReport(); renderTrends();
   }
 
@@ -621,7 +769,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
     running = true;
     cycleNo++;
     t0 = Date.now();
-    $("run").disabled = true; $("reset").disabled = true;
+    $("run").disabled = true; $("reset").disabled = true; $("auto").disabled = true;
     $("log").innerHTML = '<span class="cursor"></span>';
     $("term-state").className = "state on"; $("term-state").textContent = "live";
     $("cycle-title").textContent = `Cycle ${cycleNo}`;
@@ -641,13 +789,13 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
       $("cycle-state").textContent = `live · ${PHASES.find((p) => p.id === id).label}`;
       const p = PHASES.find((x) => x.id === id);
       log(id, `${p.label}: ${p.blurb}`, "info", "phase-line");
-      renderPhases();
+      renderPhases(); renderMap();
       await sleep(350);
     };
     const end = async (id, summary, status = "passed") => {
       cur.stages[id] = { status, summary };
       log(id, summary, status === "passed" ? "ok" : "warn");
-      renderPhases(); renderMetrics();
+      renderPhases(); renderMetrics(); renderMap();
       await sleep(500);
     };
 
@@ -680,6 +828,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
       log(`${s.key}·pipeline`, "story-analyzer → clarify → asset-resolver → spec-author → verifier → reviewer");
       await sleep(240);
       let behaviours = analyze(s);
+      activeSub = 0; renderMap();
       log(`${s.key}·story-analyzer`, `${s.criteria.length} criteria read → ${behaviours.length} behaviours`, "ok");
       await sleep(200);
       const covered = new Set(behaviours.map((b) => b.criterion));
@@ -691,13 +840,18 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
         row.revisions = 1; cur.metrics.revisions++;
         await sleep(260);
       }
+      activeSub = 3; renderMap();
+      await sleep(120);
       row.tests = author(behaviours).map((t) => ({ ...t, heals: [] }));
+      activeSub = 4; renderMap();
       log(`${s.key}·verifier`, `${s.criteria.length}/${s.criteria.length} criteria covered; 0 defects`, "ok");
       row.pipeline = "needs review";
+      activeSub = 5; renderMap();
       log(`${s.key}·reviewer`, `approve — ${row.tests.length} tests proposed to Xray and a Bitbucket PR`, "ok");
       renderStories();
       await sleep(260);
     }
+    activeSub = -1;
     await end("automate", `5/5 stories produced a reviewed suite; ${cur.metrics.revisions} verifier revision(s).`);
 
     // execute
@@ -740,7 +894,10 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
         t.final = res.status === "passed" ? "healed" : "failed";
         t.failure = res.failure;
         log("heal", `${row.key} ${t.name} → ${t.final === "healed" ? "green" : "still red (application defect)"}`, t.final === "healed" ? "ok" : "warn");
-        renderStories();
+        const sofar = cur.stories.flatMap((x) => x.tests);
+        cur.metrics.healed = sofar.filter((z) => z.final === "healed").length;
+        cur.metrics.appBugs = new Set(sofar.filter((z) => z.final === "failed").map((z) => z.criterion)).size;
+        renderStories(); renderMetrics(); renderMap();
       }
       row.tests.forEach((t) => { if (!t.final) t.final = t.first === "passed" ? "passed" : "failed"; });
     }
@@ -791,8 +948,19 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
         "Approve the proposed Xray test cases and Bitbucket PRs for the stories that passed review.",
       ],
     };
-    renderReport();
-    await end("report", cur.report.headline);
+    cur.newBugs = 0;
+    for (const b of criteria.filter((c) => c.status === "not-met")) {
+      const known = bugs.find((x) => x.criterion === b.criterion);
+      if (known) {
+        log("report", `${b.storyKey}: defect already ${known.status === "approved" ? "approved for Jira" : "proposed — awaiting approval"}`);
+        continue;
+      }
+      bugs.push({ storyKey: b.storyKey, criterion: b.criterion, failure: `AssertionError: ${DEFECTS[b.criterion]}`, status: "proposed", cycle: cycleNo });
+      cur.newBugs++;
+      log("report", `${b.storyKey}: proposed a Jira bug — approve it to file it`, "warn");
+    }
+    renderReport(); renderBugs();
+    await end("report", `${cur.report.headline}${cur.newBugs ? ` ${cur.newBugs} Jira bug(s) proposed.` : ""}`);
 
     // learn
     await begin("learn");
@@ -810,9 +978,14 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
     let created = 0, reinforced = 0;
     for (const L of byKey.values()) {
       const ex = lessons.find((l) => l.key === L.key);
+      const review = $("approval").value === "review";
       if (!ex) {
-        lessons.push({ ...L, confidence: 0.6, applied: 0, confirmed: 0, status: "active" });
-        log("learn", `new lesson → ${L.scope}: ${L.key}`, "ok"); created++;
+        lessons.push({ ...L, confidence: 0.6, applied: 0, confirmed: 0, status: review ? "proposed" : "active" });
+        log("learn", `new lesson → ${L.scope}: ${L.key}${review ? " (awaiting your approval)" : ""}`, review ? "warn" : "ok"); created++;
+      } else if (ex.status === "rejected" || ex.status === "proposed") {
+        ex.hits += L.hits;
+        if (ex.status === "proposed") ex.confidence = clamp(ex.confidence + 0.1);
+        log("learn", ex.status === "rejected" ? `seen again, but you rejected it: ${L.key}` : `seen again while awaiting approval: ${L.key}`, "info");
       } else {
         const contradicted = appliedKeys.has(L.key) && PREVENTIVE.has(ex.category);
         ex.confidence = clamp(ex.confidence + (contradicted ? -0.2 : 0.1));
@@ -837,6 +1010,8 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
       flash.push(l.key);
       await sleep(140);
     }
+    cur.learned = { created, confirmed: applied.filter((l) => !seen.has(l.key) && PREVENTIVE.has(l.category)).length };
+    cur.stable = created === 0 && cur.metrics.healed === 0 && cur.metrics.revisions === 0;
     renderMemory(flash);
     await end("learn", signals.length
       ? `${signals.length} signal(s) reduce to ${byKey.size} root cause(s): ${created} new lesson(s), ${reinforced} reinforced.`
@@ -849,21 +1024,42 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
     $("cycle-state").className = `pill dot ${verdict === "accept" ? "pass" : verdict === "reject" ? "fail" : "heal"}`;
     $("cycle-state").textContent = `finished · ${verdict}`;
     running = false;
-    $("run").disabled = false; $("reset").disabled = false;
+    $("run").disabled = false; $("reset").disabled = false; $("auto").disabled = false;
     $("run").textContent = `Run cycle ${cycleNo + 1}`;
     renderAll(flash);
     $("log").querySelector(".cursor")?.remove();
   }
 
   // ------------------------------------------------------------- controls --
-  $("run").addEventListener("click", () => { if (!running) runCycle(); });
+  $("run").addEventListener("click", () => { if (!running) { campaign = null; runCycle(); } });
+
+  async function runUntilStable() {
+    if (running) return;
+    stopAsked = false;
+    campaign = { index: 1, max: 5, first: cycleNo + 1, note: "Stops by itself once a cycle learns nothing new." };
+    for (;;) {
+      renderCampaign();
+      await runCycle();
+      if (cur.stable) { campaign.note = "Stable — nothing new to learn, so no further cycle starts."; break; }
+      const waiting = lessons.filter((l) => l.status === "proposed").length;
+      if (waiting && cur.learned.created === 0) { campaign.note = `${waiting} lesson(s) await your approval — stopped until you review them.`; break; }
+      if (stopAsked) { campaign.note = "Stopped on request."; break; }
+      if (campaign.index >= campaign.max) { campaign.note = `Reached ${campaign.max} cycles without settling.`; break; }
+      campaign.index++;
+      campaign.note = "Not stable yet — starting the next cycle with what this one learned…";
+      renderCampaign();
+      await sleep(900);
+    }
+    renderCampaign();
+  }
+  $("auto").addEventListener("click", runUntilStable);
   $("reset").addEventListener("click", () => {
     if (running) return;
-    lessons = []; history = []; cycleNo = 0;
+    lessons = []; history = []; cycleNo = 0; bugs = []; campaign = null;
     DEFECTS["A 5xx from the gateway is retried exactly once."] = "expect(gatewayCalls).toBe(2) — received 3; the client retries a 5xx twice";
     DEFECTS["Drift over one cent raises an alert with the affected account ids."] = "expect(alerts).toHaveLength(1) — received 0; drift is compared against 1.00 dollars";
     STORIES.find((s) => s.key === "PAY-830").criteria = [];
-    runCycle();
+    runUntilStable();
   });
   document.addEventListener("click", (e) => {
     const f = e.target.closest("[data-forget]");
@@ -875,8 +1071,19 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
     const x = e.target.closest("[data-fix]");
     if (x && !running) {
       delete DEFECTS[x.dataset.fix];
-      renderReview();
+      renderReview(); renderBugs();
+      return;
     }
+    const a = e.target.closest("[data-approve]") ?? e.target.closest("[data-reject]");
+    if (a) {
+      const l = lessons.find((z) => z.key === (a.dataset.approve ?? a.dataset.reject));
+      if (l) l.status = a.dataset.approve ? "active" : "rejected";
+      renderMemory([l?.key]);
+      return;
+    }
+    const b = e.target.closest("[data-file]");
+    if (b) { bugs[Number(b.dataset.file)].status = "approved"; renderBugs(); return; }
+    if (e.target.closest("#stop")) { stopAsked = true; campaign.note = "Stopping after this cycle."; renderCampaign(); }
   });
   try {
     const s = localStorage.getItem("gantry-autopilot-speed");
@@ -885,6 +1092,6 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
   $("speed").addEventListener("change", () => { try { localStorage.setItem("gantry-autopilot-speed", $("speed").value); } catch { /* ignore */ } });
 
   renderAll();
-  runCycle();
+  runUntilStable();
 })();
 </script>

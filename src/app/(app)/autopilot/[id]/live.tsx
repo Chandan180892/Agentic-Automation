@@ -1,22 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Card, CardHeader, CardBody, Pill, Sub, Label } from "@/components/ui";
+import { Card, CardHeader, CardBody, Pill, Sub, Label, Button } from "@/components/ui";
 import { PHASES } from "@/lib/agents/autopilot-phases";
 import type { CycleOutput, TestResult } from "@/lib/agents/autopilot";
+import type { LiveState as ServerLiveState } from "@/lib/agents/autopilot-live";
+import { publish, stopAutopilot } from "../../actions";
+import { AgentMap } from "./agent-map";
 
-type Ev = { id: string; ts: string; level: string; source: string; message: string; runId: string };
-
-export interface LiveState {
-  status: string;
-  error: string | null;
-  stages: { agent: string; status: string; summary: string }[];
-  output: CycleOutput | null;
-  children: { id: string; agent: string; status: string; storyKey: string }[];
-  events: Ev[];
-}
+export type LiveState = Omit<ServerLiveState, "output"> & { output: CycleOutput | null };
 
 const LEVEL = {
   ok: "text-[#4fd494]",
@@ -31,15 +26,34 @@ const VERDICT_TONE = { accept: "pass", "accept-with-risks": "heal", reject: "fai
 const PIPE_TONE = { needs_review: "pass", running: "live", blocked: "heal", failed: "fail" } as const;
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
+const SUB_AGENTS = new Set(["story-analyzer", "clarify", "asset-resolver", "spec-author", "verifier", "reviewer"]);
 
 export function CycleLive({ runId, initial }: { runId: string; initial: LiveState }) {
   const [state, setState] = useState<LiveState>(initial);
   const [follow, setFollow] = useState(true);
+  const [chase, setChase] = useState(true);
   const box = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const done = state.status !== "running";
+  // A multi-cycle run keeps going after this cycle; keep polling until the next one exists.
+  const campaignOpen =
+    Boolean(state.campaign) && !state.campaign?.next && state.status === "succeeded" && !state.output?.stable && !state.stopRequested;
+
+  // A server action (approve a bug, stop) re-renders the page; take its fresher state.
+  useEffect(() => {
+    setState((prev) => ({ ...initial, events: prev.events.length > initial.events.length ? prev.events : initial.events }));
+  }, [initial]);
+
+  // Follow a multi-cycle run onto its next cycle.
+  useEffect(() => {
+    const next = state.campaign?.next;
+    if (!done || !next || !chase) return;
+    const t = setTimeout(() => router.push(`/autopilot/${next}`), 2500);
+    return () => clearTimeout(t);
+  }, [done, chase, state.campaign?.next, router]);
 
   useEffect(() => {
-    if (done) return;
+    if (done && !campaignOpen) return;
     let stop = false;
     const tick = async () => {
       try {
@@ -60,7 +74,7 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
       stop = true;
       clearInterval(t);
     };
-  }, [runId, done, state.events]);
+  }, [runId, done, campaignOpen, state.events]);
 
   useEffect(() => {
     if (follow && box.current) box.current.scrollTop = box.current.scrollHeight;
@@ -72,12 +86,74 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
   const childAgent = useMemo(() => new Map(state.children.map((c) => [c.id, c])), [state.children]);
   // Between phases nothing is "running" for a moment; name the phase that is about to start.
   const active = (state.stages.find((s) => s.status === "running") ?? state.stages.find((s) => s.status === "pending"))?.agent;
+  const lastSub = [...state.events].reverse().find((e) => SUB_AGENTS.has(e.source))?.source ?? "";
+  const bugs = out?.bugs ?? [];
 
   return (
     <div className="grid gap-4">
       {state.error && (
         <div className="rounded-[10px] border border-fail/30 bg-fail-soft px-4 py-3 text-[12.5px] text-fail">{state.error}</div>
       )}
+
+      {/* ---------------------------------------------------------- campaign -- */}
+      {state.campaign && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] border border-accent-line bg-accent-soft px-4 py-2.5">
+          <b className="text-[12.5px] text-accent">Run until stable</b>
+          <span className="text-[12px] text-ink-2">
+            cycle {state.campaign.index} of at most {state.campaign.max}
+          </span>
+          <ol className="flex items-center gap-1">
+            {state.campaign.cycles.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/autopilot/${c.id}`}
+                  aria-current={c.id === runId ? "page" : undefined}
+                  title={`cycle ${c.cycle}: ${c.status}${c.stable ? " · stable" : ""}`}
+                  className={cn(
+                    "grid h-[22px] min-w-[22px] place-items-center rounded-[6px] border px-1 font-mono text-[11px] font-semibold",
+                    c.id === runId ? "border-accent bg-accent text-accent-ink" : "border-line bg-surface text-ink-2",
+                    c.status === "running" && c.id !== runId && "border-live text-live"
+                  )}
+                >
+                  {c.cycle}
+                </Link>
+              </li>
+            ))}
+          </ol>
+          <span className="text-[12px] text-ink-2">
+            {out?.stable
+              ? "Stable — nothing new to learn, so no further cycle starts."
+              : state.campaign.next
+                ? chase
+                  ? "Next cycle started — following it…"
+                  : "Next cycle started."
+                : state.stopRequested
+                  ? "Stopping after this cycle."
+                  : done && state.status === "succeeded"
+                    ? "Deciding whether another cycle is worth running…"
+                    : "Stops by itself once a cycle learns nothing new."}
+          </span>
+          <label className="ml-auto flex items-center gap-1.5 text-[11.5px] text-ink-2">
+            <input type="checkbox" checked={chase} onChange={(e) => setChase(e.target.checked)} />
+            follow to the next cycle
+          </label>
+          {!done && !state.stopRequested && (
+            <form action={stopAutopilot.bind(null, runId)}>
+              <Button size="sm">Stop after this cycle</Button>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* --------------------------------------------------------- agent map -- */}
+      <Card>
+        <CardHeader title="Agents at work">
+          <Sub>who holds the work right now, and what each one produced</Sub>
+        </CardHeader>
+        <CardBody className="blueprint py-3">
+          <AgentMap stages={state.stages} output={out} lastSource={lastSub} />
+        </CardBody>
+      </Card>
 
       {/* ------------------------------------------------------------ phases -- */}
       <Card>
@@ -260,6 +336,50 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
         </Card>
       )}
 
+      {/* -------------------------------------------------------------- bugs -- */}
+      {bugs.length > 0 && (
+        <Card>
+          <CardHeader title="Application defects → Jira">
+            <Sub>Each defect is proposed once. Nothing is filed until you approve it.</Sub>
+          </CardHeader>
+          <ul className="divide-y divide-line-soft">
+            {bugs.map((b) => {
+              const pub = state.publications[b.publicationId];
+              const filed = pub?.status === "published" || b.status === "filed";
+              const key = pub?.key || b.jiraKey;
+              return (
+                <li key={b.publicationId} className="grid gap-1.5 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-start">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <b className="font-mono text-[12px]">{b.storyKey}</b>
+                      <span className="text-[12.5px]">{b.criterion}</span>
+                    </div>
+                    <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.55] text-muted">{b.failure}</pre>
+                    {pub?.error && <p className="mt-1 text-[12px] text-fail">{pub.error}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 sm:justify-end">
+                    {filed ? (
+                      <Pill tone="pass">filed{key ? ` · ${key}` : ""}</Pill>
+                    ) : b.status === "pending" ? (
+                      <Pill tone="heal">proposed in an earlier cycle</Pill>
+                    ) : (
+                      <Pill tone="heal">proposed</Pill>
+                    )}
+                    {!filed && (
+                      <form action={publish.bind(null, b.publicationId)}>
+                        <Button size="sm" variant="primary">
+                          File in Jira
+                        </Button>
+                      </form>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         {/* ------------------------------------------------------------ report -- */}
         {out?.report && (
@@ -285,7 +405,8 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
             </CardHeader>
             <CardBody className="grid gap-3">
               <p className="text-[12.5px] leading-[1.6]">{out.learning.summary}</p>
-              <KeyList label="New lessons" tone="pass" keys={out.learning.created} />
+              <KeyList label="New lessons" tone="pass" keys={out.learning.created.filter((k) => !(out.learning?.proposed ?? []).includes(k))} />
+              <KeyList label="Proposed — waiting for your approval before any agent uses them" tone="heal" keys={out.learning.proposed ?? []} />
               <KeyList label="Confirmed — applied, and the problem stayed away" tone="pass" keys={out.learning.confirmed} />
               <KeyList label="Reinforced — seen again" tone="accent" keys={out.learning.reinforced} />
               <KeyList label="Contradicted — applied, but the problem came back" tone="heal" keys={out.learning.contradicted} />

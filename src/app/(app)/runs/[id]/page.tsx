@@ -35,6 +35,7 @@ const TARGET_LABEL: Record<string, string> = {
   "jira-comment": "Post questions to Jira",
   "xray-tests": "Create Xray test cases",
   "bitbucket-branch": "Commit branch & open PR in Bitbucket",
+  "jira-bug": "File a bug in Jira",
 };
 
 export default async function RunPage({ params }: { params: Promise<{ id: string }> }) {

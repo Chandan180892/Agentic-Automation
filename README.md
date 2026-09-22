@@ -65,6 +65,7 @@ app that mutates Jira, Xray or Bitbucket:
 | Proposal | What approving it does |
 |---|---|
 | `jira-comment` | Posts `clarify`'s questions on the story |
+| `jira-bug` | Files an application defect the autopilot found, linked to its story |
 | `xray-tests` | Creates the Xray test cases and records their keys |
 | `bitbucket-branch` | Commits the files to a branch and opens the pull request |
 
@@ -111,9 +112,26 @@ sign-in is configured.
 | Report | `cycle-reporter` | Verdict first, then what the agents fixed themselves, what needs a person, and the trend |
 | Learn | `learner` | Reduces the cycle's heals, revisions and defects to root causes, and stores one lesson per cause |
 
-The live view (`/autopilot/<id>`) shows the phases, one merged log from every agent in the cycle,
-each story's tests (first run → after heal), the requirements matrix, the report and what was learned.
-`/autopilot` shows the **learning curve** across cycles and the workspace's **memory**.
+The live view (`/autopilot/<id>`) shows a **map of the agents** with the one holding the work
+highlighted (down to the pipeline sub-agent), the phases, one merged log from every agent in the
+cycle, each story's tests (first run → after heal), the requirements matrix, proposed Jira bugs,
+the report and what was learned. `/autopilot` shows the **learning curve** across cycles and the
+workspace's **memory**, with each lesson's confidence history.
+
+**Run until stable** keeps starting cycles until one learns nothing new — no new lesson, nothing
+healed, nothing revised — then stops by itself (at most `AUTOPILOT_MAX_CYCLES`, default 5). The live
+view follows it from cycle to cycle, and **Stop after this cycle** ends it early.
+
+### People stay in charge
+
+- **Lesson approval.** Set *New lessons* to *wait for my approval* and a new lesson is `proposed`:
+  no agent sees it until someone approves it. A rejected lesson stays rejected even when its
+  evidence comes back. A run-until-stable that can only improve through a pending lesson stops and
+  says so, instead of repeating itself.
+- **Defects become Jira bugs — once.** Every criterion that fails on the application becomes one
+  proposed `jira-bug` publication, carrying the criterion, the test and the failure, and linked to
+  the story when filed. Later cycles reference the existing proposal instead of proposing it again.
+  As with every other write, nothing reaches Jira until you approve it.
 
 ### How it learns
 
@@ -297,7 +315,7 @@ fail with a redirect mismatch.
 npm run test:agents     # top-level agent contracts
 npm run test:pipeline   # all six sub-agents, including the revision loop
 npm run test:e2e        # the orchestrator against a real database
-npm run test:autopilot  # whole learning cycles: heals, review, lessons, self-correction
+npm run test:autopilot  # learning cycles: heals, review, lessons, approval, bugs, run-until-stable
 npm run test:auth       # session handling across every authenticated page
 npx tsc --noEmit        # typecheck
 ```

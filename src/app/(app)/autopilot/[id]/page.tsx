@@ -7,6 +7,7 @@ import { parseJson, relTime } from "@/lib/utils";
 import { PageBar, Pane } from "@/components/page-bar";
 import { buttonClass } from "@/components/ui";
 import { CycleLive, type LiveState } from "./live";
+import { liveState } from "@/lib/agents/autopilot-live";
 
 export const metadata: Metadata = { title: "Autopilot cycle" };
 export const dynamic = "force-dynamic";
@@ -19,38 +20,12 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
 
   const run = await db.run.findFirst({
     where: { id, workspaceId: workspace.id, agent: "autopilot" },
-    include: {
-      sprint: { select: { name: true } },
-      stages: { orderBy: { order: "asc" } },
-      children: {
-        orderBy: { startedAt: "asc" },
-        select: { id: true, agent: true, status: true, story: { select: { key: true } } },
-      },
-    },
+    include: { sprint: { select: { name: true } } },
   });
   if (!run) notFound();
-
-  const events = await db.event.findMany({
-    where: { runId: { in: [run.id, ...run.children.map((c) => c.id)] } },
-    orderBy: { ts: "asc" },
-    take: 2000,
-  });
-
-  const initial: LiveState = {
-    status: run.status,
-    error: run.error,
-    stages: run.stages.map((s) => ({ agent: s.agent, status: s.status, summary: s.summary })),
-    output: parseJson(run.outputJson, null),
-    children: run.children.map((c) => ({ id: c.id, agent: c.agent, status: c.status, storyKey: c.story?.key ?? "" })),
-    events: events.map((e) => ({
-      id: e.id,
-      ts: e.ts.toISOString(),
-      level: e.level,
-      source: e.source,
-      message: e.message,
-      runId: e.runId,
-    })),
-  };
+  const state = await liveState(workspace.id, run.id, null);
+  if (!state) notFound();
+  const initial = state as LiveState;
   const cycle = parseJson<{ cycle: number }>(run.inputJson, { cycle: 0 }).cycle;
 
   return (

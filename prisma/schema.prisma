@@ -80,6 +80,9 @@ model Workspace {
   bitbucketRepo       String @default("")
   defaultBranch       String @default("main")
   testFramework       String @default("playwright")
+
+  /// "auto": a new lesson is applied from the next cycle. "review": it waits for a person.
+  lessonApproval      String @default("auto")
 }
 
 model Membership {
@@ -145,6 +148,8 @@ model Run {
   agent       String // autopilot | qe-pipeline | sprint-planner | qe-auto-heal | batch-heal | qe-insights | …
   /// Set on the runs an autopilot cycle starts, so the cycle view can follow all of them.
   parentId    String?
+  /// Autopilot only: a person asked a multi-cycle run to stop after this cycle.
+  stopRequested Boolean @default(false)
   mode        String    @default("single") // single | batch
   status      String    @default("queued") // queued | running | succeeded | failed | needs_review | blocked
   inputJson   String    @default("{}")
@@ -261,11 +266,26 @@ model Lesson {
   hits        Int       @default(1) // times the underlying problem was observed
   applied     Int       @default(0) // cycles it was injected into
   confirmed   Int       @default(0) // cycles where it was applied and the problem did not recur
-  status      String    @default("active") // active | retired
+  status      String    @default("active") // proposed | active | retired | rejected
   sourceRunId String    @default("")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  events      LessonEvent[]
 
   @@unique([workspaceId, key])
+}
+
+/// One change to a lesson — its history, so a person can see why it is trusted.
+model LessonEvent {
+  id         String   @id @default(cuid())
+  lessonId   String
+  runId      String   @default("")
+  kind       String // created | reinforced | confirmed | contradicted | retired | resolved | approved | rejected
+  confidence Float
+  note       String   @default("")
+  at         DateTime @default(now())
+  lesson     Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId, at])
 }

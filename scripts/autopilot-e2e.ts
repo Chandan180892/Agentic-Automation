@@ -1,6 +1,6 @@
 /** Drives whole autopilot cycles against a real database and checks that the loop learns. */
 import { db } from "../src/lib/db";
-import { startCycle, runCycle } from "../src/lib/agents/autopilot";
+import { startCycle, runCycle, runCampaign } from "../src/lib/agents/autopilot";
 
 const results: string[] = [];
 let failures = 0;
@@ -9,9 +9,14 @@ const check = (n: string, c: boolean, e = "") => {
   results.push(`${c ? "PASS" : "FAIL"} ${n}${e ? ` — ${e}` : ""}`);
 };
 
-async function workspace() {
+async function workspace(lessonApproval = "auto") {
   const ws = await db.workspace.create({
-    data: { name: "Autopilot E2E", slug: `ap-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` },
+    data: {
+      name: "Autopilot E2E",
+      slug: `ap-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      jiraProjectKey: "PAY",
+      lessonApproval,
+    },
   });
   const sprint = await db.sprint.create({
     data: {
@@ -144,7 +149,57 @@ async function main() {
   const retired = await db.lesson.findFirstOrThrow({ where: { workspaceId: ws2.id, key: "no-fixed-waits" } });
   check("a lesson that keeps failing retires", retired.status === "retired" && (c4.out.learning?.retired.includes("no-fixed-waits") ?? false), `${retired.status} ${retired.confidence}`);
 
-  await db.workspace.deleteMany({ where: { id: { in: [ws.id, ws2.id] } } });
+  // ---- lesson history ----
+  const history = await db.lessonEvent.findMany({ where: { lesson: { workspaceId: ws.id } } });
+  check("every new lesson records how it was learned", history.filter((e) => e.kind === "created").length >= 4);
+  check("confirmations are recorded in the lesson's history", history.some((e) => e.kind === "confirmed"));
+
+  // ---- defects become Jira bug proposals, once ----
+  const bug1 = c1.out.bugs.find((b) => b.storyKey === "PAY-806");
+  check("an application defect is proposed as a Jira bug", bug1?.status === "proposed", bug1?.status);
+  const pub = bug1 ? await db.publication.findUnique({ where: { id: bug1.publicationId } }) : null;
+  check("the bug proposal waits for approval", pub?.target === "jira-bug" && pub.status === "proposed");
+  check("the bug names the criterion and keeps the test as written", /not met/.test(pub?.payloadJson ?? "") && /test was not changed/.test(pub?.payloadJson ?? ""));
+  const bug2 = c2.out.bugs.find((b) => b.storyKey === "PAY-806");
+  check("the same defect is not proposed twice", bug2?.status === "pending" && bug2.publicationId === bug1?.publicationId, bug2?.status);
+  check(
+    "no duplicate bug proposals exist",
+    (await db.publication.count({ where: { target: "jira-bug", run: { workspaceId: ws.id } } })) === c1.out.bugs.length
+  );
+
+  // ---- stability ----
+  check("the baseline cycle is not stable", c1.out.stable === false);
+  check("a cycle that learns nothing new is stable", c2.out.stable === true);
+
+  // ---- run until stable ----
+  const { ws: ws3, sprint: sprint3 } = await workspace();
+  const campaign = { id: `c-e2e-${Date.now()}`, index: 1, max: 5 };
+  const first = await startCycle({ workspaceId: ws3.id, sprintId: sprint3.id, campaign });
+  const ran = await runCampaign({ firstRunId: first.id, workspaceId: ws3.id, sprintId: sprint3.id, campaign, paceMs: 0 });
+  check("run-until-stable stops once nothing new is learned", ran.reason === "stable", ran.reason);
+  check("run-until-stable took two cycles", ran.cycles.length === 2, `${ran.cycles.length}`);
+
+  // ---- a person approves lessons before they are used ----
+  const { ws: ws4, sprint: sprint4 } = await workspace("review");
+  const reviewCampaign = { id: `c-e2e-r-${Date.now()}`, index: 1, max: 5 };
+  const r1 = await startCycle({ workspaceId: ws4.id, sprintId: sprint4.id, campaign: reviewCampaign });
+  const reviewed = await runCampaign({ firstRunId: r1.id, workspaceId: ws4.id, sprintId: sprint4.id, campaign: reviewCampaign, paceMs: 0 });
+  const pending = await db.lesson.findMany({ where: { workspaceId: ws4.id } });
+  check("in review mode new lessons wait as proposed", pending.length >= 4 && pending.every((l) => l.status === "proposed"));
+  check("the run stops when only approval would help", reviewed.reason === "awaiting-approval", reviewed.reason);
+  const second = await db.run.findUniqueOrThrow({ where: { id: reviewed.cycles[1] } });
+  check("a proposed lesson is never applied", JSON.parse(second.outputJson ?? "{}").metrics?.lessonsApplied === 0);
+
+  const reject = pending.find((l) => l.key === "stable-selectors")!;
+  await db.lesson.updateMany({ where: { workspaceId: ws4.id, key: { not: reject.key } }, data: { status: "active" } });
+  await db.lesson.update({ where: { id: reject.id }, data: { status: "rejected" } });
+  const r3 = await cycle(ws4.id, sprint4.id);
+  check("approved lessons are applied", r3.out.metrics.lessonsApplied >= 3, `${r3.out.metrics.lessonsApplied}`);
+  const stillRejected = await db.lesson.findUniqueOrThrow({ where: { id: reject.id } });
+  check("a rejected lesson stays rejected when its evidence recurs", stillRejected.status === "rejected" && stillRejected.hits > reject.hits);
+  check("the problem a rejected lesson would have fixed still needs healing", r3.out.metrics.healed > 0);
+
+  await db.workspace.deleteMany({ where: { id: { in: [ws.id, ws2.id, ws3.id, ws4.id] } } });
 
   console.log(results.join("\n"));
   console.log(`\n${results.length - failures} passed, ${failures} failed`);
