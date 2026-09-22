@@ -1,12 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireWorkspace } from "@/lib/workspace";
 import { runAgentTracked, logEvent, finishRun, invokeAgent } from "@/lib/agents/runtime";
 import { newRunnerToken } from "@/lib/crypto";
 import { parseJson } from "@/lib/utils";
+import { applySprintPlan } from "@/lib/agents/apply-plan";
 import type * as S from "@/lib/agents/schemas";
 import type { z } from "zod";
 
@@ -34,6 +36,7 @@ const SEED_STORIES = [
       "Submitting the same idempotency key twice creates exactly one order.",
       "The second response returns the original order, not an error.",
       "A key expires after 24 hours and is then reusable.",
+      "A request without an idempotency key is rejected with a 400 naming the missing header.",
     ],
     points: 5,
   },
@@ -215,29 +218,7 @@ export async function planSprint(sprintId: string): Promise<void> {
 
   const plan = result.output;
 
-  // Apply the plan: sizes, order, commitment, and any drafted acceptance criteria.
-  const drafted = new Map(plan.draftedAcceptanceCriteria.map((d) => [d.key, d.criteria]));
-  await Promise.all(
-    plan.commitment.map((c) => {
-      const story = sprint.stories.find((s) => s.key === c.key);
-      if (!story) return Promise.resolve(null);
-      const draft = drafted.get(c.key);
-      return db.story.update({
-        where: { id: story.id },
-        data: {
-          points: c.points,
-          priority: c.order,
-          committed: c.committed,
-          ...(draft?.length
-            ? {
-                acceptanceCriteria: JSON.stringify(draft),
-                tagsJson: JSON.stringify(["ac-drafted-by-agent"]),
-              }
-            : {}),
-        },
-      });
-    })
-  );
+  await applySprintPlan(sprint.stories, plan);
 
   await db.sprint.update({
     where: { id: sprint.id },
@@ -466,6 +447,38 @@ export async function publish(publicationId: string): Promise<void> {
 
   revalidatePath(`/runs/${runId}`);
   revalidatePath("/results");
+}
+
+// --------------------------------------------------------------- autopilot --
+
+/**
+ * Starts one self-learning cycle over the sprint and returns straight away. The cycle runs
+ * after the response, so the browser lands on the live view while the agents work.
+ */
+export async function startAutopilot(sprintId: string): Promise<void> {
+  const { workspace } = await ctx();
+  const sprint = await db.sprint.findFirst({
+    where: { id: sprintId, workspaceId: workspace.id },
+    include: { _count: { select: { stories: true } } },
+  });
+  if (!sprint) throw new Error("Sprint not found in this workspace.");
+  if (sprint._count.stories === 0) throw new Error("Add at least one story before starting the autopilot.");
+  const busy = await db.run.findFirst({ where: { workspaceId: workspace.id, agent: "autopilot", status: "running" } });
+  if (busy) redirect(`/autopilot/${busy.id}`);
+
+  const { startCycle, runCycleSafely } = await import("@/lib/agents/autopilot");
+  const run = await startCycle({ workspaceId: workspace.id, sprintId: sprint.id });
+  after(() => runCycleSafely(run.id));
+
+  revalidatePath("/autopilot");
+  redirect(`/autopilot/${run.id}`);
+}
+
+/** Forgets one lesson. The learner may teach it again if the evidence comes back. */
+export async function forgetLesson(lessonId: string): Promise<void> {
+  const { workspace } = await ctx();
+  await db.lesson.deleteMany({ where: { id: lessonId, workspaceId: workspace.id } });
+  revalidatePath("/autopilot");
 }
 
 // ------------------------------------------------------------- qe-insights --

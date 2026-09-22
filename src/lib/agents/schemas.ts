@@ -155,3 +155,96 @@ export const QeInsightsOut = z.object({
   coverageGaps: z.array(z.object({ area: z.string(), why: z.string() })).default([]),
   recommendation: z.string(),
 });
+
+// ---------------------------------------------------- requirements-reviewer
+export const RequirementsReviewIn = z.object({
+  stories: z.array(
+    z.object({
+      key: z.string(),
+      title: z.string(),
+      acceptanceCriteria: z.array(z.string()),
+      pipeline: z.string().describe("How the story's pipeline ended: needs_review, blocked, failed, not-run"),
+      tests: z.array(
+        z.object({
+          name: z.string(),
+          criterion: z.string(),
+          status: z.enum(["passed", "failed", "healed", "not-run"]),
+          note: z.string().default(""),
+        })
+      ),
+    })
+  ),
+});
+
+export const RequirementsReviewOut = z.object({
+  summary: z.string(),
+  verdict: z.enum(["accept", "accept-with-risks", "reject"]),
+  criteria: z.array(
+    z.object({
+      storyKey: z.string(),
+      criterion: z.string(),
+      status: z.enum(["met", "not-met", "untested", "blocked"]),
+      evidence: z.string().describe("Which tests prove it, or why nothing does"),
+    })
+  ),
+  gaps: z.array(z.object({ storyKey: z.string(), gap: z.string(), action: z.string() })).default([]),
+});
+
+// ----------------------------------------------------------- cycle-reporter
+export const CycleReportIn = z.object({
+  sprintName: z.string(),
+  cycle: z.number(),
+  metrics: z.object({
+    storiesCommitted: z.number(),
+    storiesSpecced: z.number(),
+    testsRun: z.number(),
+    firstRunPassRate: z.number(),
+    finalPassRate: z.number(),
+    healed: z.number(),
+    appBugs: z.number(),
+    revisions: z.number(),
+    criteriaMet: z.number(),
+    criteriaTotal: z.number(),
+    lessonsApplied: z.number(),
+  }),
+  previous: z
+    .object({ firstRunPassRate: z.number(), revisions: z.number(), healed: z.number() })
+    .nullable()
+    .default(null),
+  verdict: z.string(),
+  gaps: z.array(z.string()).default([]),
+  bugs: z.array(z.string()).default([]),
+});
+
+export const CycleReportOut = z.object({
+  headline: z.string().describe("One line a lead would read in a notification"),
+  summary: z.string(),
+  highlights: z.array(z.string()),
+  risks: z.array(z.string()).default([]),
+  nextActions: z.array(z.string()),
+});
+
+// ------------------------------------------------------------------ learner
+export const LearnerIn = z.object({
+  signals: z.array(
+    z.object({
+      kind: z.enum(["fixed-wait", "style-selector", "uncovered-criterion", "app-bug"]),
+      storyKey: z.string().default(""),
+      detail: z.string(),
+    })
+  ),
+  known: z.array(z.object({ key: z.string(), rule: z.string() })).default([]),
+});
+
+export const LearnerOut = z.object({
+  summary: z.string(),
+  lessons: z.array(
+    z.object({
+      key: z.string().describe("Stable kebab-case id; reuse a known key when the finding is the same"),
+      scope: z.enum(["sprint-planner", "story-analyzer", "clarify", "spec-author", "verifier", "reviewer", "qe-auto-heal"]),
+      category: z.enum(["heal", "coverage", "planning", "clarity", "review"]),
+      rule: z.string().describe("An instruction the scoped agent can follow, one sentence"),
+      evidence: z.string(),
+    })
+  ),
+});

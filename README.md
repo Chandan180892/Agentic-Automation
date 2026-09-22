@@ -6,7 +6,12 @@ Gantry reads your **Jira** stories, walks each one through a chain of six sub-ag
 **Xray** test cases and a **Bitbucket** branch and pull request. Nothing is written to your systems
 until you approve it.
 
+The **Autopilot** closes the loop: it plans the sprint, automates every story, executes the tests,
+heals what drifted, reviews each acceptance criterion against the evidence, reports, and **learns** —
+so the next cycle makes fewer of the same mistakes. You watch all of it live.
+
 - **Design prototype:** `docs/index.html` — published at https://chandan180892.github.io/Agentic-Automation/
+- **Autopilot replica:** `docs/autopilot.html` — the learning loop running in your browser, no setup (on Pages at `/autopilot.html`)
 - **Stack:** Next.js 16 (App Router, FE + BE in one deployable), Auth.js v5, Prisma, Anthropic SDK
 - **Integrations:** Jira Cloud, Xray Cloud, Bitbucket Cloud
 
@@ -21,6 +26,9 @@ until you approve it.
 | `qe-auto-heal` | Repair, one spec | failure → verified patch |
 | `batch-heal` | Repair, fleet | *n* failures → one PR |
 | `qe-insights` | Analysis | run history → signals |
+| `requirements-reviewer` | Review | criteria + results → traceability verdict |
+| `cycle-reporter` | Report | cycle metrics → report |
+| `learner` | Learning | cycle evidence → lessons |
 
 ### Inside `qe-pipeline`
 
@@ -79,6 +87,63 @@ shared demo workspace instead.
 It is off unless you switch it on, and the page says plainly what it is: **everyone who signs in
 this way lands in the same workspace and can see each other's work.** Turn it off once real
 sign-in is configured.
+
+---
+
+## Autopilot — the self-learning loop
+
+**Autopilot** in the app runs one cycle over a sprint and streams it live:
+
+```
+ recall → plan → automate → execute → heal → review → report → learn
+    ↑                                                            │
+    └──────────── lessons feed the next cycle's agents ──────────┘
+```
+
+| Phase | Who | What happens |
+|---|---|---|
+| Recall | memory | Loads the workspace's lessons and injects each into the agent it is scoped to |
+| Plan | `sprint-planner` | Sizes, orders and commits the sprint; drafts missing acceptance criteria |
+| Automate | `qe-pipeline` | Each committed story through the six sub-agents |
+| Execute | executor | Runs every generated test |
+| Heal | `qe-auto-heal` | Patches selector and timing drift and re-runs; escalates application defects untouched |
+| Review | `requirements-reviewer` | Every acceptance criterion judged **met / not met / untested / blocked** from execution evidence |
+| Report | `cycle-reporter` | Verdict first, then what the agents fixed themselves, what needs a person, and the trend |
+| Learn | `learner` | Reduces the cycle's heals, revisions and defects to root causes, and stores one lesson per cause |
+
+The live view (`/autopilot/<id>`) shows the phases, one merged log from every agent in the cycle,
+each story's tests (first run → after heal), the requirements matrix, the report and what was learned.
+`/autopilot` shows the **learning curve** across cycles and the workspace's **memory**.
+
+### How it learns
+
+Learning is in-context, not fine-tuning. A lesson is a one-sentence rule backed by evidence, stored
+per workspace and appended to the system prompt of the agent it is scoped to:
+
+| Signal in a cycle | Lesson | Injected into |
+|---|---|---|
+| A heal removed a fixed `waitForTimeout` | `no-fixed-waits` | `spec-author` |
+| A heal swapped a styling-class selector | `stable-selectors` | `spec-author` |
+| The verifier found an uncovered criterion | `behaviour-per-criterion` | `story-analyzer` |
+| A test failed on the application | `known-defect-<story>` | `qe-auto-heal` |
+
+Lessons correct themselves. Seen again → **reinforced**. Applied and the problem stayed away →
+**confirmed**. Applied and the problem came back anyway → **contradicted**, confidence drops, and
+below 0.25 the lesson **retires**. Anything in memory can be forgotten from the UI.
+
+Learning never touches an assertion. A test that caught a real defect stays red, the defect is
+reported every cycle until the application is fixed, and the requirements verdict stays `reject`.
+
+### Execution is simulated — for now
+
+Gantry does not yet drive a browser against your application, so `src/lib/agents/executor.ts`
+simulates one, and the run log says so. It is not random: it reads the spec source and fails a test
+for the reasons a real run would (a fixed sleep racing the render, a styling selector that matches
+nothing, a criterion the simulated app violates), so a heal genuinely turns a test green. Replace
+`executeSpec` with a call to your runner and nothing else changes.
+
+With no `ANTHROPIC_API_KEY` the simulated agents pause briefly between steps so the cycle can be
+watched; `AUTOPILOT_PACE_MS` overrides the pause (`0` for none).
 
 ---
 
@@ -232,6 +297,7 @@ fail with a redirect mismatch.
 npm run test:agents     # top-level agent contracts
 npm run test:pipeline   # all six sub-agents, including the revision loop
 npm run test:e2e        # the orchestrator against a real database
+npm run test:autopilot  # whole learning cycles: heals, review, lessons, self-correction
 npm run test:auth       # session handling across every authenticated page
 npx tsc --noEmit        # typecheck
 ```
@@ -242,8 +308,10 @@ The suites assert the behaviours that make the pipeline trustworthy, not just th
 `story-analyzer` refuses to call an unspecified story testable, `clarify` blocks rather than
 guessing, `asset-resolver` never recreates what it reuses, `verifier` reports uncovered criteria
 honestly, `reviewer` refuses to publish uncovered work, a revision closes the gap the verifier
-found, and an end-to-end run proposes publications **without publishing any of them**. CI runs all
-of it on every push.
+found, and an end-to-end run proposes publications **without publishing any of them**. The autopilot
+suite runs two cycles on one sprint and asserts that the second one needs fewer heals and revisions,
+that no heal ever patches an application defect, and that a lesson which does not help is
+contradicted and retired. CI runs all of it on every push.
 
 ---
 
@@ -269,8 +337,9 @@ Jira story
 src/app/(app)/              authenticated screens — sprint, agents, runs, results, settings
 src/lib/agents/             top-level registry, runtime
 src/lib/agents/pipeline*.ts the six sub-agents and the orchestrator that runs them
+src/lib/agents/autopilot.ts the self-learning cycle; memory.ts, executor.ts beside it
 src/lib/atlassian/          Jira, Xray and Bitbucket Cloud clients
-prisma/schema.prisma        workspaces, sprints, stories, runs, stages, test cases, publications
+prisma/schema.prisma        workspaces, sprints, stories, runs, stages, test cases, publications, lessons
 docs/index.html             the design prototype (served by GitHub Pages)
 scripts/                    agent, sub-agent, orchestrator and auth suites
 ```

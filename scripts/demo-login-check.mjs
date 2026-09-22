@@ -27,7 +27,7 @@ await db.session.create({
 const cookie = `authjs.session-token=${sessionToken}`;
 
 // 3. every authenticated page must now render
-for (const path of ["/sprint", "/agents", "/results", "/settings"]) {
+for (const path of ["/sprint", "/agents", "/autopilot", "/results", "/settings"]) {
   const res = await fetch(`${BASE}${path}`, { headers: { cookie }, redirect: "manual" });
   const body = res.ok ? await res.text() : "";
   check(`${path} renders for a session cookie`, res.status === 200, `got ${res.status}`);

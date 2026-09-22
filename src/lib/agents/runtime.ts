@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { AGENTS, isAgentId } from "./registry";
-import type { AgentDef, AgentId, AgentResult } from "./types";
+import { memoryPrompt, type AgentDef, type AgentId, type AgentResult, type Memory } from "./types";
 import { db } from "@/lib/db";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
@@ -29,10 +29,14 @@ export class AgentError extends Error {
  * forced tool call, so the output is always shaped like the agent's schema. Without a key
  * the agent's own simulator runs instead, and the result is labelled `simulated` all the
  * way to the UI — the app stays usable before anyone configures a key.
+ *
+ * `memory` carries the lessons the workspace has learned for this agent. A live model gets them
+ * appended to its system prompt; a simulator gets them as an argument.
  */
 export async function invokeAgent<T = unknown>(
   agentId: AgentId,
-  rawInput: unknown
+  rawInput: unknown,
+  memory?: Memory
 ): Promise<AgentResult<T>> {
   const def = AGENTS[agentId] as unknown as AgentDef;
   if (!def) throw new AgentError(`Unknown agent: ${agentId}`);
@@ -46,7 +50,7 @@ export async function invokeAgent<T = unknown>(
   const input = parsed.data;
 
   if (!agentsAreLive()) {
-    return { output: def.output.parse(def.simulate(input)) as T, mode: "simulated", model: "simulator" };
+    return { output: def.output.parse(def.simulate(input, memory)) as T, mode: "simulated", model: "simulator" };
   }
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -55,7 +59,7 @@ export async function invokeAgent<T = unknown>(
     message = await client.messages.create({
       model: MODEL,
       max_tokens: def.maxTokens ?? 4000,
-      system: def.system,
+      system: def.system + memoryPrompt(memory),
       tools: [
         {
           name: def.tool,
@@ -100,6 +104,8 @@ export async function invokeAgent<T = unknown>(
 export async function startRun(opts: {
   workspaceId: string;
   sprintId?: string | null;
+  storyId?: string | null;
+  parentId?: string | null;
   agent: AgentId;
   input: unknown;
 }) {
@@ -107,6 +113,8 @@ export async function startRun(opts: {
     data: {
       workspaceId: opts.workspaceId,
       sprintId: opts.sprintId ?? null,
+      storyId: opts.storyId ?? null,
+      parentId: opts.parentId ?? null,
       agent: opts.agent,
       mode: AGENTS[opts.agent].mode,
       status: "running",
@@ -145,16 +153,23 @@ export async function finishRun(
 export async function runAgentTracked<T = unknown>(opts: {
   workspaceId: string;
   sprintId?: string | null;
+  storyId?: string | null;
+  /** The autopilot run this belongs to, when it is one step of a cycle. */
+  parentId?: string | null;
   agent: string;
   input: unknown;
+  memory?: Memory;
 }): Promise<{ runId: string; result: AgentResult<T> }> {
   if (!isAgentId(opts.agent)) throw new AgentError(`Unknown agent: ${opts.agent}`);
   const agent = opts.agent;
   const run = await startRun({ ...opts, agent });
   await logEvent(run.id, `${agent} started`, "info", agent);
+  if (opts.memory?.lessons.length) {
+    await logEvent(run.id, `applying ${opts.memory.lessons.length} learned lesson(s)`, "info", agent);
+  }
 
   try {
-    const result = await invokeAgent<T>(agent, opts.input);
+    const result = await invokeAgent<T>(agent, opts.input, opts.memory);
     if (result.mode === "simulated") {
       await logEvent(
         run.id,

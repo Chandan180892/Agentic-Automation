@@ -17,6 +17,9 @@ const ICONS: Record<string, React.ReactNode> = {
   "qe-auto-heal": <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" />,
   "batch-heal": <path d="M20 11a8 8 0 1 0-2.7 6M20 4v5h-5M8 12h8M12 8v8" />,
   "qe-insights": <path d="M3 18l5-6 4 4 4-7 5 6M3 21h18" />,
+  "requirements-reviewer": <path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" />,
+  "cycle-reporter": <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6ZM14 3v6h6M8 13h8M8 17h5" />,
+  learner: <path d="M12 3a6 6 0 0 0-4 10.5V17h8v-3.5A6 6 0 0 0 12 3ZM9 21h6" />,
 };
 
 const CHAIN = SUB_AGENT_LIST.map((a) => [a.id, a.role] as const);

@@ -39,6 +39,9 @@ jobs:
       - name: Orchestrator end-to-end
         run: npx tsx scripts/pipeline-e2e.ts
 
+      - name: Autopilot learning loop end-to-end
+        run: npx tsx scripts/autopilot-e2e.ts
+
       - name: Auth smoke tests
         run: |
           npx next start -p 3210 &

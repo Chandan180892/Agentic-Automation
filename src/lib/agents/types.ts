@@ -5,7 +5,10 @@ export type AgentId =
   | "qe-pipeline"
   | "qe-auto-heal"
   | "batch-heal"
-  | "qe-insights";
+  | "qe-insights"
+  | "requirements-reviewer"
+  | "cycle-reporter"
+  | "learner";
 
 export type AgentMode = "single" | "batch";
 
@@ -25,7 +28,7 @@ export interface AgentDef<I extends z.ZodType = z.ZodType, O extends z.ZodType =
   toolDescription: string;
   prompt: (input: z.infer<I>) => string;
   /** Deterministic stand-in used when no ANTHROPIC_API_KEY is configured. */
-  simulate: (input: z.infer<I>) => z.infer<O>;
+  simulate: (input: z.infer<I>, memory?: Memory) => z.infer<O>;
   maxTokens?: number;
 }
 
@@ -34,4 +37,32 @@ export interface AgentResult<T = unknown> {
   mode: "live" | "simulated";
   model: string;
   usage?: { input: number; output: number };
+}
+
+/** A lesson as an agent sees it: the rule, and the key the simulators match on. */
+export interface RecalledLesson {
+  key: string;
+  rule: string;
+  confidence: number;
+}
+
+/** What the workspace has learned that applies to one agent, injected into its turn. */
+export interface Memory {
+  lessons: RecalledLesson[];
+}
+
+export const hasLesson = (memory: Memory | undefined, key: string) =>
+  Boolean(memory?.lessons.some((l) => l.key === key));
+
+/** Appended to an agent's system prompt so a live model applies what the workspace learned. */
+export function memoryPrompt(memory: Memory | undefined) {
+  if (!memory?.lessons.length) return "";
+  return [
+    "",
+    "",
+    "Lessons this workspace has learned from earlier runs. Each one came from verified evidence",
+    "(a failed execution, a verifier defect, a heal). Apply them unless the input clearly makes",
+    "one inapplicable:",
+    ...memory.lessons.map((l) => `- ${l.rule} (confidence ${l.confidence.toFixed(2)})`),
+  ].join("\n");
 }

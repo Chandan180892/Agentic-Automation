@@ -13,7 +13,8 @@
     "db:postgres": "node -e \"const f='prisma/schema.prisma',fs=require('fs');fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/provider = \\\"sqlite\\\"/,'provider = \\\"postgresql\\\"'));console.log('schema switched to postgresql — set DATABASE_URL and run: npm run db:push')\"",
     "test:auth": "node --env-file=.env scripts/demo-login-check.mjs",
     "test:pipeline": "tsx --env-file=.env scripts/pipeline-check.ts",
-    "test:e2e": "tsx --env-file=.env scripts/pipeline-e2e.ts"
+    "test:e2e": "tsx --env-file=.env scripts/pipeline-e2e.ts",
+    "test:autopilot": "tsx --env-file=.env scripts/autopilot-e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

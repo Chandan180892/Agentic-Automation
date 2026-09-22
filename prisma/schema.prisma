@@ -71,6 +71,7 @@ model Workspace {
   members   Membership[]
   sprints   Sprint[]
   runs      Run[]
+  lessons   Lesson[]
 
   // Atlassian Cloud wiring. Credentials live in env; these are the coordinates.
   jiraProjectKey      String @default("")
@@ -141,7 +142,9 @@ model Run {
   workspaceId String
   sprintId    String?
   storyId     String?
-  agent       String // qe-pipeline | sprint-planner | qe-auto-heal | batch-heal | qe-insights
+  agent       String // autopilot | qe-pipeline | sprint-planner | qe-auto-heal | batch-heal | qe-insights | …
+  /// Set on the runs an autopilot cycle starts, so the cycle view can follow all of them.
+  parentId    String?
   mode        String    @default("single") // single | batch
   status      String    @default("queued") // queued | running | succeeded | failed | needs_review | blocked
   inputJson   String    @default("{}")
@@ -157,8 +160,11 @@ model Run {
   assets      Asset[]
   testCases   TestCase[]
   publications Publication[]
+  parent      Run?      @relation("RunChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Run[]     @relation("RunChildren")
 
   @@index([workspaceId, startedAt])
+  @@index([parentId])
 }
 
 /// One sub-agent's turn inside a pipeline run. The chain is ordered, and a stage that
@@ -235,4 +241,31 @@ model Event {
   run     Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
 
   @@index([runId, ts])
+}
+
+// ---------------------------------------------------------------- Learning --
+
+/// Something the workspace learned from evidence, fed back into the agents it applies to.
+/// Lessons are keyed so the same finding reinforces one row rather than piling up copies.
+/// Confidence rises when a lesson is seen again or holds up after being applied, and falls
+/// when the problem it was meant to prevent comes back anyway — below a floor it retires.
+model Lesson {
+  id          String    @id @default(cuid())
+  workspaceId String
+  key         String // stable slug, e.g. "no-fixed-waits"
+  scope       String // the agent or sub-agent it is injected into, e.g. "spec-author"
+  category    String // heal | coverage | planning | clarity | review
+  rule        String // the instruction, written for the agent
+  evidence    String    @default("") // the latest thing that taught or confirmed it
+  confidence  Float     @default(0.5)
+  hits        Int       @default(1) // times the underlying problem was observed
+  applied     Int       @default(0) // cycles it was injected into
+  confirmed   Int       @default(0) // cycles where it was applied and the problem did not recur
+  status      String    @default("active") // active | retired
+  sourceRunId String    @default("")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
 }
