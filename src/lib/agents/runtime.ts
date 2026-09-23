@@ -1,20 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { z } from "zod";
 import { AGENTS, isAgentId } from "./registry";
 import { memoryPrompt, type AgentDef, type AgentId, type AgentResult, type Memory } from "./types";
 import { db } from "@/lib/db";
-
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+import { callStructured } from "./llm";
 
 export function agentsAreLive() {
   return Boolean(process.env.ANTHROPIC_API_KEY);
-}
-
-/** Anthropic wants a plain JSON Schema object; zod emits the $schema key it does not use. */
-function toolSchema(schema: z.ZodType) {
-  const json = z.toJSONSchema(schema, { io: "output" }) as Record<string, unknown>;
-  delete json.$schema;
-  return json as Anthropic.Tool.InputSchema;
 }
 
 export class AgentError extends Error {
@@ -36,7 +26,8 @@ export class AgentError extends Error {
 export async function invokeAgent<T = unknown>(
   agentId: AgentId,
   rawInput: unknown,
-  memory?: Memory
+  memory?: Memory,
+  runId?: string | null
 ): Promise<AgentResult<T>> {
   const def = AGENTS[agentId] as unknown as AgentDef;
   if (!def) throw new AgentError(`Unknown agent: ${agentId}`);
@@ -53,50 +44,22 @@ export async function invokeAgent<T = unknown>(
     return { output: def.output.parse(def.simulate(input, memory)) as T, mode: "simulated", model: "simulator" };
   }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  let message: Anthropic.Message;
   try {
-    message = await client.messages.create({
-      model: MODEL,
-      max_tokens: def.maxTokens ?? 4000,
-      system: def.system + memoryPrompt(memory),
-      tools: [
-        {
-          name: def.tool,
-          description: def.toolDescription,
-          input_schema: toolSchema(def.output),
-        },
-      ],
-      tool_choice: { type: "tool", name: def.tool },
-      messages: [{ role: "user", content: def.prompt(input) }],
+    const { output, model } = await callStructured<T>({
+      agent: agentId,
+      system: def.system,
+      volatileSystem: memoryPrompt(memory).trim() || undefined,
+      prompt: def.prompt(input),
+      tool: def.tool,
+      toolDescription: def.toolDescription,
+      schema: def.output as never,
+      maxTokens: def.maxTokens,
+      runId,
     });
+    return { output, mode: "live", model };
   } catch (err) {
-    throw new AgentError(
-      err instanceof Error ? `${agentId} could not reach the model: ${err.message}` : `${agentId} failed`,
-      err
-    );
+    throw new AgentError(err instanceof Error ? err.message : `${agentId} failed`, err);
   }
-
-  const block = message.content.find((c) => c.type === "tool_use");
-  if (!block || block.type !== "tool_use") {
-    throw new AgentError(`${agentId} returned no structured result (stop reason: ${message.stop_reason}).`);
-  }
-
-  const out = def.output.safeParse(block.input);
-  if (!out.success) {
-    throw new AgentError(
-      `${agentId} returned a result that did not match its schema: ${out.error.issues
-        .map((i) => `${i.path.join(".") || "root"} ${i.message}`)
-        .join("; ")}`
-    );
-  }
-
-  return {
-    output: out.data as T,
-    mode: "live",
-    model: MODEL,
-    usage: { input: message.usage.input_tokens, output: message.usage.output_tokens },
-  };
 }
 
 // --------------------------------------------------------------- persistence
@@ -169,7 +132,7 @@ export async function runAgentTracked<T = unknown>(opts: {
   }
 
   try {
-    const result = await invokeAgent<T>(agent, opts.input, opts.memory);
+    const result = await invokeAgent<T>(agent, opts.input, opts.memory, run.id);
     if (result.mode === "simulated") {
       await logEvent(
         run.id,

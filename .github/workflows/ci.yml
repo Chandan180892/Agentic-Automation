@@ -8,10 +8,24 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gantry
+          POSTGRES_PASSWORD: gantry
+          POSTGRES_DB: gantry
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gantry"
+          --health-interval 5s
+          --health-retries 10
     env:
-      DATABASE_URL: "file:./ci.db"
+      DATABASE_URL: "postgresql://gantry:gantry@localhost:5432/gantry"
+      SHADOW_DATABASE_URL: "postgresql://gantry:gantry@localhost:5432/gantry_shadow"
       AUTH_SECRET: "ci-only-secret-value-not-used-in-production="
       AUTH_TRUST_HOST: "true"
+      AUTOPILOT_PACE_MS: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,8 +35,17 @@ jobs:
 
       - run: npm ci
 
-      - name: Apply schema
-        run: npx prisma db push --skip-generate
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Migrations match the schema
+        run: |
+          PGPASSWORD=gantry psql -h localhost -U gantry -d gantry -c "CREATE DATABASE gantry_shadow"
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code
 
       - name: Typecheck
         run: npx tsc --noEmit
@@ -42,12 +65,19 @@ jobs:
       - name: Autopilot learning loop end-to-end
         run: npx tsx scripts/autopilot-e2e.ts
 
-      - name: Auth smoke tests
+      - name: Platform — jobs, recovery, environment
+        run: npx tsx scripts/platform-check.ts
+
+      - name: Auth smoke tests and readiness
         run: |
           npx next start -p 3210 &
           for i in $(seq 1 60); do
-            if curl -sf -o /dev/null http://127.0.0.1:3210/login; then break; fi
+            if curl -sf -o /dev/null http://127.0.0.1:3210/api/health; then break; fi
             sleep 1
           done
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3210/api/ready; then break; fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:3210/api/ready
           BASE=http://127.0.0.1:3210 node scripts/demo-login-check.mjs
-

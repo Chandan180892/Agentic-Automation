@@ -9,10 +9,10 @@ services:
     name: gantry
     runtime: node
     plan: free
-    # db:postgres switches the Prisma provider before the client is generated.
-    buildCommand: npm ci && npm run db:postgres && npm run build
-    startCommand: npx prisma db push --skip-generate --accept-data-loss && npm start
-    healthCheckPath: /login
+    buildCommand: npm ci && npm run build
+    # Applies reviewed migrations only; never rewrites the schema destructively.
+    startCommand: npx prisma migrate deploy && npm start
+    healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -33,6 +33,9 @@ services:
         sync: false
       - key: ANTHROPIC_MODEL
         value: claude-sonnet-5
+      # Daily input+output tokens per workspace; 0 removes the cap.
+      - key: AGENT_DAILY_TOKEN_BUDGET
+        value: "3000000"
       - key: AUTH_GOOGLE_ID
         sync: false
       - key: AUTH_GOOGLE_SECRET

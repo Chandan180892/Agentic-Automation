@@ -44,7 +44,7 @@ export default async function ResultsPage() {
       include: { run: { include: { story: { select: { key: true } }, _count: { select: { testCases: true } } } } },
     }),
     db.testCase.count({ where: { run: { workspaceId: workspace.id } } }),
-    db.run.count({ where: { workspaceId: workspace.id, status: "running" } }),
+    db.run.count({ where: { workspaceId: workspace.id, status: { in: ["running", "queued"] } } }),
   ]);
 
   const published = await db.testCase.count({

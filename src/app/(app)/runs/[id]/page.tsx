@@ -183,7 +183,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
                           Open PR ↗
                         </a>
                       )}
-                      {p.status !== "published" && (
+                      {p.status !== "published" && p.status !== "publishing" && (
                         <form action={publish.bind(null, p.id)}>
                           <Button type="submit" size="sm" variant="primary">
                             {p.status === "failed" ? "Retry" : "Approve & publish"}
@@ -199,7 +199,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
         )}
 
         <div className="grid items-start gap-4 xl:grid-cols-[1fr_400px]">
-          <RunStream runId={run.id} initial={run.events} finished={run.status !== "running"} />
+          <RunStream runId={run.id} initial={run.events} finished={run.status !== "running" && run.status !== "queued"} />
 
           <div className="grid gap-4">
             {run.testCases.length > 0 && (

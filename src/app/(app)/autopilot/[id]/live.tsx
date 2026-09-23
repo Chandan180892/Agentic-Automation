@@ -34,7 +34,7 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
   const [chase, setChase] = useState(true);
   const box = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  const done = state.status !== "running";
+  const done = state.status !== "running" && state.status !== "queued";
   // A multi-cycle run keeps going after this cycle; keep polling until the next one exists.
   const campaignOpen =
     Boolean(state.campaign) && !state.campaign?.next && state.status === "succeeded" && !state.output?.stable && !state.stopRequested;
@@ -160,6 +160,8 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
         <CardHeader title="Cycle">
           {done ? (
             <Pill tone={state.status === "succeeded" ? "pass" : "fail"}>{state.status}</Pill>
+          ) : state.status === "queued" ? (
+            <Pill tone="idle">queued — waiting for a worker</Pill>
           ) : (
             <Pill tone="live">live · {PHASES.find((p) => p.id === active)?.label ?? "finishing"}</Pill>
           )}

@@ -31,7 +31,7 @@ export default async function AgentsPage() {
 
   const [counts, live] = await Promise.all([
     db.run.groupBy({ by: ["agent", "status"], where: { workspaceId: workspace.id }, _count: true }),
-    db.run.count({ where: { workspaceId: workspace.id, status: "running" } }),
+    db.run.count({ where: { workspaceId: workspace.id, status: { in: ["running", "queued"] } } }),
   ]);
 
   const stats = new Map<string, { total: number; running: number; review: number; failed: number }>();

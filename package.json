@@ -6,15 +6,20 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "test:agents": "tsx --env-file=.env scripts/agents-check.ts",
-    "db:postgres": "node -e \"const f='prisma/schema.prisma',fs=require('fs');fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/provider = \\\"sqlite\\\"/,'provider = \\\"postgresql\\\"'));console.log('schema switched to postgresql — set DATABASE_URL and run: npm run db:push')\"",
     "test:auth": "node --env-file=.env scripts/demo-login-check.mjs",
     "test:pipeline": "tsx --env-file=.env scripts/pipeline-check.ts",
     "test:e2e": "tsx --env-file=.env scripts/pipeline-e2e.ts",
-    "test:autopilot": "tsx --env-file=.env scripts/autopilot-e2e.ts"
+    "test:autopilot": "tsx --env-file=.env scripts/autopilot-e2e.ts",
+    "db:up": "docker compose up -d db",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "worker": "tsx --env-file=.env scripts/worker.ts",
+    "test:platform": "tsx --env-file=.env scripts/platform-check.ts",
+    "test": "npm run test:agents && npm run test:pipeline && npm run test:e2e && npm run test:autopilot && npm run test:platform",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
@@ -40,5 +45,8 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

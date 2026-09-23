@@ -97,7 +97,13 @@ function defaultPaceMs() {
   return agentsAreLive() ? 0 : 450;
 }
 
-export async function startCycle(opts: { workspaceId: string; sprintId: string; campaign?: Campaign }) {
+export async function startCycle(opts: {
+  workspaceId: string;
+  sprintId: string;
+  campaign?: Campaign;
+  /** "queued" when a job will pick the cycle up; "running" when it starts right away. */
+  status?: "queued" | "running";
+}) {
   const cycle = (await db.run.count({ where: { workspaceId: opts.workspaceId, agent: "autopilot" } })) + 1;
   const run = await db.run.create({
     data: {
@@ -105,7 +111,7 @@ export async function startCycle(opts: { workspaceId: string; sprintId: string; 
       sprintId: opts.sprintId,
       agent: "autopilot",
       mode: "batch",
-      status: "running",
+      status: opts.status ?? "running",
       inputJson: JSON.stringify({ cycle, campaign: opts.campaign ?? null }),
     },
   });

@@ -41,7 +41,7 @@ export default async function AutopilotPage() {
     }),
   ]);
 
-  const running = cycles.find((c) => c.status === "running");
+  const running = cycles.find((c) => c.status === "running" || c.status === "queued");
   const STATUS_ORDER = { proposed: 0, active: 1, retired: 2, rejected: 3 } as Record<string, number>;
   lessons.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
   const proposed = lessons.filter((l) => l.status === "proposed").length;
@@ -228,7 +228,7 @@ export default async function AutopilotPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <b className="text-[13px]">Cycle {n}</b>
                           <span className="text-[12px] text-muted">{c.sprint?.name}</span>
-                          {c.status === "running" ? (
+                          {c.status === "running" || c.status === "queued" ? (
                             <Pill tone="live">running</Pill>
                           ) : c.status === "failed" ? (
                             <Pill tone="fail">failed</Pill>

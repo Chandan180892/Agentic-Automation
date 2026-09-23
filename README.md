@@ -172,14 +172,17 @@ git clone https://github.com/chandan180892/agentic-automation.git
 cd agentic-automation
 npm install
 cp .env.example .env          # then fill it in — see below
-npm run db:push               # creates dev.db
-npm run dev                   # http://localhost:3000
+npm run db:up                 # Postgres 16 in Docker (docker-compose.yml)
+npm run db:deploy             # applies the migrations
+npm run dev                   # http://localhost:3000 — the job worker starts with it
 ```
+
+Any Postgres 14+ works; point `DATABASE_URL` at it instead of running `db:up`.
 
 ### Minimum `.env` to sign in
 
 ```bash
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://gantry:gantry@localhost:5432/gantry"
 AUTH_SECRET="…"               # openssl rand -base64 32
 AUTH_URL="http://localhost:3000"
 AUTH_TRUST_HOST="true"
@@ -250,7 +253,7 @@ The app is FE + BE in one Next.js deployable.
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Chandan180892/Agentic-Automation)
 
 `render.yaml` provisions the web service **and** a Postgres database together, generates
-`AUTH_SECRET`, and switches Prisma to the Postgres provider during the build. Or do it by hand:
+`AUTH_SECRET`, and applies the migrations on start. Or do it by hand:
 Render → **New → Blueprint** → point at this repo → Apply.
 
 It boots with `ALLOW_DEMO_LOGIN=true`, so you can sign in and use the whole app before creating a
@@ -276,7 +279,8 @@ docker run -p 3000:3000 \
   gantry
 ```
 
-The container applies the schema on boot, so a fresh database needs no extra step.
+On start the container applies pending migrations (`prisma migrate deploy` — reviewed migration
+files only, never a destructive schema rewrite), so a fresh database needs no extra step.
 
 ### Vercel
 
@@ -284,13 +288,17 @@ The container applies the schema on boot, so a fresh database needs no extra ste
 npx vercel --prod
 ```
 
-Set the same environment variables in the project settings. Use Postgres rather than SQLite —
-serverless filesystems do not persist:
+Set the same environment variables in the project settings, with a hosted Postgres. Serverless
+functions cannot keep a job worker alive, so set `WORKER_MODE=off` there and run the worker
+somewhere long-lived — the container image with `WORKER_MODE=inline` and no traffic, or
+`npm run worker` on any machine that can reach the database. Runs stay `queued` until a worker
+picks them up, and `/api/ready` reports when none has checked in.
 
-```bash
-npm run db:postgres     # switches the Prisma provider
-npm run db:push
-```
+### Production
+
+[docs/OPERATIONS.md](docs/OPERATIONS.md) covers configuration, scaling workers, monitoring
+(`/api/health`, `/api/ready`, structured logs), the runbook, and database changes.
+[SECURITY.md](SECURITY.md) covers roles, approvals, audit, rate limits and spend caps.
 
 ### GitHub Pages
 
@@ -316,11 +324,14 @@ npm run test:agents     # top-level agent contracts
 npm run test:pipeline   # all six sub-agents, including the revision loop
 npm run test:e2e        # the orchestrator against a real database
 npm run test:autopilot  # learning cycles: heals, review, lessons, approval, bugs, run-until-stable
+npm run test:platform   # job queue, worker, crash recovery, retention, env validation
 npm run test:auth       # session handling across every authenticated page
-npx tsc --noEmit        # typecheck
+npm test                # all of the above except auth
+npm run typecheck
 ```
 
-`test:auth` needs the app running (`npm start` on port 3210, or set `BASE`).
+The suites need a Postgres database (`DATABASE_URL`). `test:auth` needs the app running
+(`npm start` on port 3210, or set `BASE`).
 
 The suites assert the behaviours that make the pipeline trustworthy, not just that it runs:
 `story-analyzer` refuses to call an unspecified story testable, `clarify` blocks rather than
@@ -352,12 +363,18 @@ Jira story
 ## Repository layout
 
 ```
-src/app/(app)/              authenticated screens — sprint, agents, runs, results, settings
-src/lib/agents/             top-level registry, runtime
+src/app/(app)/              authenticated screens — sprint, autopilot, agents, runs, results, settings
+src/app/api/                live-state polling, /api/health, /api/ready
+src/lib/agents/             agent registry and runtime; llm.ts is the one model client
 src/lib/agents/pipeline*.ts the six sub-agents and the orchestrator that runs them
 src/lib/agents/autopilot.ts the self-learning cycle; memory.ts, executor.ts beside it
+src/lib/jobs/               the durable job queue, its handlers and the worker
+src/lib/env.ts, log.ts      validated configuration, structured logging
+src/lib/guard.ts            roles, audit log, rate limits, user-facing action errors
 src/lib/atlassian/          Jira, Xray and Bitbucket Cloud clients
-prisma/schema.prisma        workspaces, sprints, stories, runs, stages, test cases, publications, lessons
+src/instrumentation.ts      boot: environment checks and the inline worker
+prisma/schema.prisma        the data model; prisma/migrations holds every change to it
+docs/OPERATIONS.md          deploying, scaling, monitoring, runbook
 docs/index.html             the design prototype (served by GitHub Pages)
-scripts/                    agent, sub-agent, orchestrator and auth suites
+scripts/                    test suites and the standalone worker
 ```

@@ -1,15 +1,13 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { SUB_AGENTS, type SubAgentId, type SubAgentDef } from "./pipeline-registry";
 import { agentsAreLive } from "./runtime";
 import { memoryPrompt, type Memory } from "./types";
+import { callStructured } from "./llm";
 import { db } from "@/lib/db";
 import { parseJson } from "@/lib/utils";
 import * as P from "./pipeline-schemas";
 import { listFiles } from "@/lib/atlassian/bitbucket";
 import { bitbucketConfigured } from "@/lib/atlassian/config";
-
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
 
 type Analyzer = z.infer<typeof P.StoryAnalyzerOut>;
 type Clarify = z.infer<typeof P.ClarifyOut>;
@@ -18,17 +16,12 @@ type Author = z.infer<typeof P.SpecAuthorOut>;
 type Verify = z.infer<typeof P.VerifierOut>;
 type Review = z.infer<typeof P.ReviewerOut>;
 
-function toolSchema(schema: z.ZodType) {
-  const json = z.toJSONSchema(schema, { io: "output" }) as Record<string, unknown>;
-  delete json.$schema;
-  return json as Anthropic.Tool.InputSchema;
-}
-
-/** Runs one sub-agent. Same forced-tool-call contract as the top-level agents. */
+/** Runs one sub-agent. Same structured-output contract as the top-level agents. */
 async function runSubAgent<T>(
   id: SubAgentId,
   input: unknown,
-  memory?: Memory
+  memory?: Memory,
+  runId?: string
 ): Promise<{ output: T; mode: "live" | "simulated" }> {
   const def = SUB_AGENTS[id] as unknown as SubAgentDef;
   const parsed = def.input.safeParse(input);
@@ -42,29 +35,18 @@ async function runSubAgent<T>(
     return { output: def.output.parse(def.simulate(parsed.data, memory)) as T, mode: "simulated" };
   }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const message = await client.messages.create({
-    model: MODEL,
-    max_tokens: def.maxTokens ?? 4000,
-    system: def.system + memoryPrompt(memory),
-    tools: [{ name: def.tool, description: def.toolDescription, input_schema: toolSchema(def.output) }],
-    tool_choice: { type: "tool", name: def.tool },
-    messages: [{ role: "user", content: def.prompt(parsed.data) }],
+  const { output } = await callStructured<T>({
+    agent: id,
+    system: def.system,
+    volatileSystem: memoryPrompt(memory).trim() || undefined,
+    prompt: def.prompt(parsed.data),
+    tool: def.tool,
+    toolDescription: def.toolDescription,
+    schema: def.output as never,
+    maxTokens: def.maxTokens,
+    runId,
   });
-
-  const block = message.content.find((c) => c.type === "tool_use");
-  if (!block || block.type !== "tool_use") {
-    throw new Error(`${id} returned no structured result (stop reason: ${message.stop_reason}).`);
-  }
-  const out = def.output.safeParse(block.input);
-  if (!out.success) {
-    throw new Error(
-      `${id} returned a result that did not match its schema: ${out.error.issues
-        .map((i) => `${i.path.join(".") || "root"} ${i.message}`)
-        .join("; ")}`
-    );
-  }
-  return { output: out.data as T, mode: "live" };
+  return { output, mode: "live" };
 }
 
 async function log(
@@ -157,7 +139,7 @@ export async function runPipeline(opts: {
 
   // ---------------------------------------------------------- 1. analyze --
   await startStage(runId, "story-analyzer");
-  const analysis = (await runSubAgent<Analyzer>("story-analyzer", { story: storyCtx, framework: ws.testFramework }, mem("story-analyzer"))).output;
+  const analysis = (await runSubAgent<Analyzer>("story-analyzer", { story: storyCtx, framework: ws.testFramework }, mem("story-analyzer"), runId)).output;
   await endStage(runId, "story-analyzer", analysis.testable ? "passed" : "blocked", analysis.summary, analysis);
   await pace();
   for (const b of analysis.behaviours) await log(runId, `behaviour: ${b.name}`, "info", "story-analyzer");
@@ -174,7 +156,7 @@ export async function runPipeline(opts: {
   await startStage(runId, "clarify");
   let clarification: Clarify = { summary: "No ambiguities to resolve.", questions: [], blocked: false, jiraComment: "" };
   if (analysis.ambiguities.length > 0) {
-    clarification = (await runSubAgent<Clarify>("clarify", { story: storyCtx, ambiguities: analysis.ambiguities }, mem("clarify"))).output;
+    clarification = (await runSubAgent<Clarify>("clarify", { story: storyCtx, ambiguities: analysis.ambiguities }, mem("clarify"), runId)).output;
     for (const q of clarification.questions) {
       await log(runId, `${q.blocking ? "[blocking] " : ""}${q.question}`, q.blocking ? "warn" : "info", "clarify");
     }
@@ -224,7 +206,7 @@ export async function runPipeline(opts: {
       behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
       repoPaths,
       framework: ws.testFramework,
-    }, mem("asset-resolver"))
+    }, mem("asset-resolver"), runId)
   ).output;
   await endStage(runId, "asset-resolver", "passed", resolved.summary, resolved);
   await pace();
@@ -240,7 +222,7 @@ export async function runPipeline(opts: {
       create: resolved.create.map((c) => ({ path: c.path, kind: c.kind })),
       conventions: resolved.conventions,
       framework: ws.testFramework,
-    }, mem("spec-author"))
+    }, mem("spec-author"), runId)
   ).output;
 
   for (const f of authored.files) {
@@ -284,7 +266,7 @@ export async function runPipeline(opts: {
       behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
       files: authored.files.map((f) => ({ path: f.path, content: f.content })),
       testCases: authored.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })),
-    }, mem("verifier"))
+    }, mem("verifier"), runId)
   ).output;
   for (const d of verified.defects) {
     await log(runId, `[${d.severity}] ${d.path}: ${d.issue}`, d.severity === "minor" ? "info" : "warn", "verifier");
@@ -317,7 +299,7 @@ export async function runPipeline(opts: {
           uncoveredCriteria: uncovered,
           previousFiles: authored.files.map((f) => ({ path: f.path, content: f.content })),
         },
-      }, mem("spec-author"))
+      }, mem("spec-author"), runId)
     ).output;
 
     // Replace the previous attempt's output rather than accumulating duplicates.
@@ -355,7 +337,7 @@ export async function runPipeline(opts: {
         behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
         files: revised.files.map((f) => ({ path: f.path, content: f.content })),
         testCases: revised.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })),
-      }, mem("verifier"))
+      }, mem("verifier"), runId)
     ).output;
     for (const d of verified.defects) {
       await log(runId, `[${d.severity}] ${d.path}: ${d.issue}`, d.severity === "minor" ? "info" : "warn", "verifier");
@@ -384,7 +366,7 @@ export async function runPipeline(opts: {
         defects: verified.defects.map((d) => ({ path: d.path, severity: d.severity, issue: d.issue })),
         coverage: verified.coverage.map((c) => ({ criterion: c.criterion, covered: c.covered })),
       },
-    }, mem("reviewer"))
+    }, mem("reviewer"), runId)
   ).output;
   await endStage(runId, "reviewer", reviewed.verdict === "approve" ? "passed" : "blocked", reviewed.summary, reviewed);
   await pace();

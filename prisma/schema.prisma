@@ -1,7 +1,7 @@
 // Gantry — agentic QE automation.
-// Default provider is sqlite so a fresh clone runs with zero setup.
-// For Postgres: `npm run db:postgres` (rewrites the provider below), then set
-// DATABASE_URL to your Postgres connection string.
+// Postgres everywhere: locally via `docker compose up -d db`, in CI as a service container, in
+// production as a managed database. Schema changes ship as migrations (prisma/migrations) and are
+// applied with `prisma migrate deploy` — never `db push` against a database holding real data.
 
 generator client {
   provider = "prisma-client-js"
@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -72,6 +72,8 @@ model Workspace {
   sprints   Sprint[]
   runs      Run[]
   lessons   Lesson[]
+  jobs      Job[]
+  audits    AuditLog[]
 
   // Atlassian Cloud wiring. Credentials live in env; these are the coordinates.
   jiraProjectKey      String @default("")
@@ -150,6 +152,12 @@ model Run {
   parentId    String?
   /// Autopilot only: a person asked a multi-cycle run to stop after this cycle.
   stopRequested Boolean @default(false)
+  /// Model usage for every call made on behalf of this run, sub-agents included.
+  modelCalls       Int @default(0)
+  inputTokens      Int @default(0)
+  outputTokens     Int @default(0)
+  cacheReadTokens  Int @default(0)
+  cacheWriteTokens Int @default(0)
   mode        String    @default("single") // single | batch
   status      String    @default("queued") // queued | running | succeeded | failed | needs_review | blocked
   inputJson   String    @default("{}")
@@ -288,4 +296,62 @@ model LessonEvent {
   lesson     Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@index([lessonId, at])
+}
+
+// ------------------------------------------------------------------- Jobs --
+
+/// Durable background work. Anything that runs longer than a request — a pipeline, an autopilot
+/// cycle — is a Job, claimed by a worker with a lease. A worker that dies stops renewing its
+/// lease; the sweep then fails the job and its run with a clear reason instead of leaving them
+/// "running" forever.
+model Job {
+  id          String    @id @default(cuid())
+  workspaceId String
+  kind        String // story-pipeline | sprint-pipelines | autopilot
+  payloadJson String    @default("{}")
+  status      String    @default("queued") // queued | running | succeeded | failed | cancelled
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(1)
+  runAfter    DateTime  @default(now())
+  lockedBy    String?
+  lockedUntil DateTime?
+  lastError   String?
+  /// The run this job drives, so the UI can link to it.
+  runId       String?
+  /// Set while a job is active to make "only one at a time" an atomic database guarantee.
+  /// Cleared when the job ends, so the same key can be used again.
+  dedupeKey   String?   @unique
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAfter])
+  @@index([status, lockedUntil])
+}
+
+/// One row per live worker process, refreshed on every poll. Readiness uses it to tell whether
+/// anything is picking up jobs.
+model WorkerHeartbeat {
+  id      String   @id // worker id: host + pid + random suffix
+  beatAt  DateTime @default(now())
+  started DateTime @default(now())
+  running Int      @default(0)
+}
+
+// ------------------------------------------------------------------ Audit --
+
+/// Every decision a person makes that changes what the agents do or what reaches Atlassian.
+model AuditLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  actorId     String    @default("")
+  actorEmail  String    @default("")
+  action      String // publish | lesson.approve | lesson.reject | lesson.forget | autopilot.start | ...
+  target      String    @default("")
+  detailJson  String    @default("{}")
+  at          DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, at])
 }
