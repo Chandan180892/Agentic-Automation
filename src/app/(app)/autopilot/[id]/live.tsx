@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardBody, Pill, Sub, Label, Button } from "@/components/ui";
 import { PHASES } from "@/lib/agents/autopilot-phases";
@@ -12,13 +12,6 @@ import { publish, stopAutopilot } from "../../actions";
 import { AgentMap } from "./agent-map";
 
 export type LiveState = Omit<ServerLiveState, "output"> & { output: CycleOutput | null };
-
-const LEVEL = {
-  ok: "text-[#4fd494]",
-  error: "text-[#ff9182]",
-  warn: "text-[#f2b65e]",
-  info: "text-[#c6d3e6]",
-} as const;
 
 const STAGE_TONE = { passed: "pass", running: "live", blocked: "heal", failed: "fail", skipped: "idle", pending: "idle" } as const;
 const CRITERION_TONE = { met: "pass", "not-met": "fail", untested: "heal", blocked: "idle" } as const;
@@ -30,9 +23,7 @@ const SUB_AGENTS = new Set(["story-analyzer", "clarify", "asset-resolver", "spec
 
 export function CycleLive({ runId, initial }: { runId: string; initial: LiveState }) {
   const [state, setState] = useState<LiveState>(initial);
-  const [follow, setFollow] = useState(true);
   const [chase, setChase] = useState(true);
-  const box = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const done = state.status !== "running" && state.status !== "queued";
   // A multi-cycle run keeps going after this cycle; keep polling until the next one exists.
@@ -76,14 +67,8 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
     };
   }, [runId, done, campaignOpen, state.events]);
 
-  useEffect(() => {
-    if (follow && box.current) box.current.scrollTop = box.current.scrollHeight;
-  }, [state.events.length, follow]);
-
   const out = state.output;
   const m = out?.metrics;
-  const start = state.events.length ? new Date(state.events[0].ts).getTime() : Date.now();
-  const childAgent = useMemo(() => new Map(state.children.map((c) => [c.id, c])), [state.children]);
   // Between phases nothing is "running" for a moment; name the phase that is about to start.
   const active = (state.stages.find((s) => s.status === "running") ?? state.stages.find((s) => s.status === "pending"))?.agent;
   const lastSub = [...state.events].reverse().find((e) => SUB_AGENTS.has(e.source))?.source ?? "";
@@ -213,65 +198,7 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[1.15fr_1fr]">
-        {/* ------------------------------------------------------------- log -- */}
-        <div className="term overflow-hidden rounded-[9px] xl:row-span-2">
-          <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3.5 py-2.5">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2 py-[2.5px] text-[11px] font-semibold",
-                done ? "border-white/15 bg-white/5 text-[#9fb0c9]" : "border-[#5fc8ea]/30 bg-[#5fc8ea]/10 text-[#5fc8ea]"
-              )}
-            >
-              <span className="size-[5px] rounded-full bg-current" />
-              {done ? "finished" : "live"}
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#7e90ac]">every agent, one stream</span>
-            <label className="ml-auto flex items-center gap-1.5 text-[11px] text-[#7e90ac]">
-              <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} />
-              follow
-            </label>
-            <span className="font-mono text-[11px] text-[#7e90ac]">{state.events.length}</span>
-          </div>
-          <div ref={box} className="term-text h-[560px] overflow-auto px-3.5 py-3 font-mono text-[11.5px] leading-[1.7]">
-            {state.events.map((e) => {
-              const child = childAgent.get(e.runId);
-              return (
-                <div key={e.id} className="flex gap-2.5 whitespace-pre-wrap break-words">
-                  <span className="shrink-0 text-[#54657f]">{clock(e.ts, start)}</span>
-                  <span className="w-[112px] shrink-0 truncate font-medium text-[#8ca9ff]" title={child ? `${child.agent} ${child.storyKey}` : e.source}>
-                    {child?.storyKey ? `${child.storyKey}·` : ""}
-                    {e.source}
-                  </span>
-                  <span className={LEVEL[e.level as keyof typeof LEVEL] ?? LEVEL.info}>{e.message}</span>
-                </div>
-              );
-            })}
-            {!done && <span className="cursor inline-block h-3 w-[7px] -mb-0.5 bg-[#8ca9ff]" />}
-          </div>
-        </div>
-
-        {/* ----------------------------------------------------- lessons used -- */}
-        <Card>
-          <CardHeader title="Memory applied this cycle">
-            <Pill tone="accent" dot={false}>{out?.applied.length ?? 0}</Pill>
-          </CardHeader>
-          <CardBody>
-            {!out?.applied.length ? (
-              <Sub>No lessons yet — this cycle is the baseline the next one learns from.</Sub>
-            ) : (
-              <ul className="grid gap-2">
-                {out.applied.map((a) => (
-                  <li key={`${a.scope}-${a.key}`} className="text-[12px] leading-[1.5]">
-                    <span className="font-mono text-[11px] text-accent">{a.scope}</span>{" "}
-                    <span className="font-mono text-[11px] text-muted">({a.confidence.toFixed(2)})</span> — {a.rule}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardBody>
-        </Card>
-
+      <div className="grid items-start gap-4">
         {/* ------------------------------------------------------ test board -- */}
         <Card>
           <CardHeader title="Stories & tests">
@@ -400,11 +327,7 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
         {/* ---------------------------------------------------------- learning -- */}
         {out?.learning && (
           <Card>
-            <CardHeader title="What this cycle learned">
-              <Link href="/autopilot" className="ml-auto text-[11.5px] font-semibold text-accent hover:underline">
-                Memory →
-              </Link>
-            </CardHeader>
+            <CardHeader title="What this cycle learned" />
             <CardBody className="grid gap-3">
               <p className="text-[12.5px] leading-[1.6]">{out.learning.summary}</p>
               <KeyList label="New lessons" tone="pass" keys={out.learning.created.filter((k) => !(out.learning?.proposed ?? []).includes(k))} />
@@ -420,11 +343,6 @@ export function CycleLive({ runId, initial }: { runId: string; initial: LiveStat
       </div>
     </div>
   );
-}
-
-function clock(ts: string, start: number) {
-  const s = Math.max(0, Math.floor((new Date(ts).getTime() - start) / 1000));
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
 function Metric({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "pass" | "fail" | "heal" }) {

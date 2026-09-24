@@ -12,17 +12,17 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: gantry
-          POSTGRES_PASSWORD: gantry
-          POSTGRES_DB: gantry
+          POSTGRES_USER: autopilot
+          POSTGRES_PASSWORD: autopilot
+          POSTGRES_DB: autopilot
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U gantry"
+          --health-cmd "pg_isready -U autopilot"
           --health-interval 5s
           --health-retries 10
     env:
-      DATABASE_URL: "postgresql://gantry:gantry@localhost:5432/gantry"
-      SHADOW_DATABASE_URL: "postgresql://gantry:gantry@localhost:5432/gantry_shadow"
+      DATABASE_URL: "postgresql://autopilot:autopilot@localhost:5432/autopilot"
+      SHADOW_DATABASE_URL: "postgresql://autopilot:autopilot@localhost:5432/autopilot_shadow"
       AUTH_SECRET: "ci-only-secret-value-not-used-in-production="
       AUTH_TRUST_HOST: "true"
       AUTOPILOT_PACE_MS: "0"
@@ -40,7 +40,7 @@ jobs:
 
       - name: Migrations match the schema
         run: |
-          PGPASSWORD=gantry psql -h localhost -U gantry -d gantry -c "CREATE DATABASE gantry_shadow"
+          PGPASSWORD=autopilot psql -h localhost -U autopilot -d autopilot -c "CREATE DATABASE autopilot_shadow"
           npx prisma migrate diff \
             --from-migrations prisma/migrations \
             --to-schema-datamodel prisma/schema.prisma \

@@ -542,7 +542,7 @@ export async function runCycle(opts: { runId: string; paceMs?: number }): Promis
           summary: `[${t.storyKey}] ${t.criterion}`.slice(0, 240),
           description: [
             `Acceptance criterion not met: ${t.criterion}`,
-            `Found by the Gantry autopilot, cycle ${cycle}. The test is correct; the application does not do what the criterion requires. The test was not changed.`,
+            `Found by Autopilot, cycle ${cycle}. The test is correct; the application does not do what the criterion requires. The test was not changed.`,
             `Test: ${t.name}\nSpec: ${t.path}`,
             `Failure:\n${failure}`,
           ].join("\n\n"),

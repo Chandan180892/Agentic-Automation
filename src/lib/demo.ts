@@ -18,7 +18,7 @@ export function demoLoginEnabled() {
   return process.env.ALLOW_DEMO_LOGIN === "true";
 }
 
-const DEMO_EMAIL = "demo@gantry.local";
+const DEMO_EMAIL = "demo@autopilot.local";
 const SESSION_DAYS = 30;
 
 /** Matches @auth/core's own cookie naming so the session is read back normally. */

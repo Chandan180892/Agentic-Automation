@@ -1,4 +1,4 @@
-// Gantry — agentic QE automation.
+// Autopilot — agentic QE automation.
 // Postgres everywhere: locally via `docker compose up -d db`, in CI as a service container, in
 // production as a managed database. Schema changes ship as migrations (prisma/migrations) and are
 // applied with `prisma migrate deploy` — never `db push` against a database holding real data.
@@ -216,7 +216,7 @@ model TestCase {
   story        Story?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
 }
 
-/// What the pipeline wants to write to Jira, Xray or Bitbucket. Nothing leaves Gantry
+/// What the pipeline wants to write to Jira, Xray or Bitbucket. Nothing leaves Autopilot
 /// until someone approves the publication here.
 model Publication {
   id          String    @id @default(cuid())

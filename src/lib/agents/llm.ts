@@ -5,7 +5,7 @@ import { env } from "@/lib/env";
 import { log } from "@/lib/log";
 
 /**
- * The one place Gantry calls the model. Every agent and sub-agent goes through `callStructured`,
+ * The one place Autopilot calls the model. Every agent and sub-agent goes through `callStructured`,
  * which gives them the same guarantees:
  *
  * - the result is a schema-valid object or an error that says why — never a half-parsed guess;

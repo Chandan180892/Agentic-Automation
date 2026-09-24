@@ -15,7 +15,7 @@ check("anonymous request is redirected away from /sprint", r.status === 307 || r
 
 // 2. mint a session exactly the way src/lib/demo.ts does
 const user = await db.user.create({
-  data: { email: `demo-check-${Date.now()}@gantry.local`, name: "Demo Check", emailVerified: new Date() },
+  data: { email: `demo-check-${Date.now()}@autopilot.local`, name: "Demo Check", emailVerified: new Date() },
 });
 await db.workspace.create({
   data: { name: "Demo check ws", slug: `demo-check-${Date.now()}`, members: { create: { userId: user.id, role: "owner" } } },
@@ -31,7 +31,7 @@ for (const path of ["/sprint", "/agents", "/autopilot", "/results", "/settings"]
   const res = await fetch(`${BASE}${path}`, { headers: { cookie }, redirect: "manual" });
   const body = res.ok ? await res.text() : "";
   check(`${path} renders for a session cookie`, res.status === 200, `got ${res.status}`);
-  if (res.ok) check(`${path} shows the app shell`, body.includes("Gantry"), "no shell markup");
+  if (res.ok) check(`${path} shows the app shell`, body.includes("Autopilot"), "no shell markup");
 }
 
 // 4. an expired session must be rejected

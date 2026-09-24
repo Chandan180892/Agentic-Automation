@@ -52,7 +52,7 @@ export default async function LoginPage({
             G
           </span>
           <span>
-            <b className="block font-display text-[17px] leading-[1.1] tracking-[-0.03em]">Gantry</b>
+            <b className="block font-display text-[17px] leading-[1.1] tracking-[-0.03em]">Autopilot</b>
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.11em] text-muted">
               Agentic QE
             </span>
@@ -65,7 +65,7 @@ export default async function LoginPage({
           <em className="not-italic text-accent">Green out.</em>
         </h1>
         <p className="mt-4 max-w-[46ch] text-[15px] leading-[1.6] text-ink-2">
-          Gantry reads your sprint, writes the specs and test assets, and runs them on your own
+          Autopilot reads your sprint, writes the specs and test assets, and runs them on your own
           machines — cloud or the laptop under your desk. When a spec breaks, it fixes itself and
           shows you the diff.
         </p>
@@ -98,7 +98,7 @@ export default async function LoginPage({
 
       <section className="flex flex-col justify-center gap-5 px-7 py-10 lg:px-12 lg:py-14">
         <div>
-          <h2 className="text-[24px] tracking-[-0.03em]">Sign in to Gantry</h2>
+          <h2 className="text-[24px] tracking-[-0.03em]">Sign in to Autopilot</h2>
           <p className="mt-1.5 text-[12.5px] text-muted">Use the account your code already lives under.</p>
         </div>
 
@@ -155,13 +155,13 @@ export default async function LoginPage({
             <Pill tone="accent">Workspace</Pill>
             <p className="flex-1 text-[11.5px] leading-[1.6] text-muted">
               Your first sign-in creates a workspace. Invite your team, connect a runner, and point
-              Gantry at a repo — the agents pick up from there.
+              Autopilot at a repo — the agents pick up from there.
             </p>
           </div>
         </div>
 
         <p className="text-[11.5px] leading-[1.6] text-muted">
-          Sessions are httpOnly cookies signed by Auth.js. Gantry never stores a password, and never
+          Sessions are httpOnly cookies signed by Auth.js. Autopilot never stores a password, and never
           asks for one.
         </p>
       </section>

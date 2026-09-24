@@ -285,7 +285,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
               <CardHeader title="Where this goes" />
               <CardBody className="grid gap-2.5">
                 <Sub>
-                  Gantry runs nothing itself. Specs land on a Bitbucket branch, test cases land in
+                  Autopilot runs nothing itself. Specs land on a Bitbucket branch, test cases land in
                   Xray, and questions land as a Jira comment — each only after you approve it above.
                 </Sub>
                 <Link href="/settings" className="text-[12px] font-semibold text-accent hover:underline">

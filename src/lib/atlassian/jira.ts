@@ -159,7 +159,7 @@ export async function createBug(opts: {
         project: { key: opts.projectKey },
         issuetype: { name: "Bug" },
         summary: opts.summary.slice(0, 250),
-        labels: opts.labels ?? ["gantry", "autopilot"],
+        labels: opts.labels ?? ["autopilot"],
         description: {
           type: "doc",
           version: 1,

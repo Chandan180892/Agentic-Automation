@@ -22,7 +22,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Gantry", template: "%s · Gantry" },
+  title: { default: "Autopilot", template: "%s · Autopilot" },
   description:
     "Plan the sprint, generate the specs, run them on your own servers, and heal what breaks — driven by agents.",
 };

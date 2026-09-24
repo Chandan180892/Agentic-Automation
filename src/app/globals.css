@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Gantry — "Blueprint & Bench"
+   Autopilot — "Blueprint & Bench"
    Planning surfaces read as drafting paper; execution surfaces as instruments.
    Every colour is a variable so the three theme states (light, dark, and the
    un-stamped system default) all resolve from one set.
@@ -166,7 +166,7 @@ h1, h2, h3, h4 {
 .tnum { font-variant-numeric: tabular-nums; }
 
 /* Instrument heartbeat on runner rows. */
-@keyframes gantry-ping {
+@keyframes autopilot-ping {
   0% { transform: scale(0.6); opacity: 0.7; }
   100% { transform: scale(1.5); opacity: 0; }
 }
@@ -177,11 +177,11 @@ h1, h2, h3, h4 {
   border-radius: 9999px;
   border: 1.5px solid currentColor;
   opacity: 0.55;
-  animation: gantry-ping 2s ease-out infinite;
+  animation: autopilot-ping 2s ease-out infinite;
 }
 
-@keyframes gantry-blink { 50% { opacity: 0; } }
-.cursor { animation: gantry-blink 1.05s steps(2) infinite; }
+@keyframes autopilot-blink { 50% { opacity: 0; } }
+.cursor { animation: autopilot-blink 1.05s steps(2) infinite; }
 
 /* Log surfaces stay dark in both themes — a terminal is a terminal. */
 .term { background: #0a1120; border: 1px solid var(--line); }

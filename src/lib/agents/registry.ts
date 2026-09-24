@@ -3,7 +3,7 @@ import { hasLesson, type AgentDef, type AgentId, type AgentMode } from "./types"
 import * as S from "./schemas";
 
 const HOUSE_RULES = `
-You are one agent in Gantry, an agentic quality-engineering platform. Every agent here
+You are one agent in Autopilot, an agentic quality-engineering platform. Every agent here
 follows the same three rules:
 
 1. Never invent a requirement. If the input does not say it, say you drafted it and mark it

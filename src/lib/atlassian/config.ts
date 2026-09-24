@@ -3,7 +3,7 @@
  * coordinates (project keys, repo slug) live on the Workspace row.
  *
  * Every client degrades the same way: when its credentials are missing it reports
- * `configured: false` and the caller works from what Gantry already holds. Nothing
+ * `configured: false` and the caller works from what Autopilot already holds. Nothing
  * silently pretends a remote call happened.
  */
 

@@ -1,12 +1,12 @@
-# Gantry
+# Autopilot
 
 **Sprint in. Green out.**
 
-Gantry reads your **Jira** stories, walks each one through a chain of six sub-agents, and proposes
+Autopilot reads your **Jira** stories, walks each one through a chain of six sub-agents, and proposes
 **Xray** test cases and a **Bitbucket** branch and pull request. Nothing is written to your systems
 until you approve it.
 
-The **Autopilot** closes the loop: it plans the sprint, automates every story, executes the tests,
+Its **autopilot loop** closes the circle: it plans the sprint, automates every story, executes the tests,
 heals what drifted, reviews each acceptance criterion against the evidence, reports, and **learns** —
 so the next cycle makes fewer of the same mistakes. You watch all of it live.
 
@@ -91,9 +91,9 @@ sign-in is configured.
 
 ---
 
-## Autopilot — the self-learning loop
+## The self-learning loop
 
-**Autopilot** in the app runs one cycle over a sprint and streams it live:
+The **Autopilot** screen in the app runs one cycle over a sprint and streams it live:
 
 ```
  recall → plan → automate → execute → heal → review → report → learn
@@ -113,10 +113,9 @@ sign-in is configured.
 | Learn | `learner` | Reduces the cycle's heals, revisions and defects to root causes, and stores one lesson per cause |
 
 The live view (`/autopilot/<id>`) shows a **map of the agents** with the one holding the work
-highlighted (down to the pipeline sub-agent), the phases, one merged log from every agent in the
-cycle, each story's tests (first run → after heal), the requirements matrix, proposed Jira bugs,
-the report and what was learned. `/autopilot` shows the **learning curve** across cycles and the
-workspace's **memory**, with each lesson's confidence history.
+highlighted (down to the pipeline sub-agent), the phases, each story's tests (first run → after
+heal), the requirements matrix, proposed Jira bugs, the report and what the cycle learned.
+`/autopilot` lists the cycles.
 
 **Run until stable** keeps starting cycles until one learns nothing new — no new lesson, nothing
 healed, nothing revised — then stops by itself (at most `AUTOPILOT_MAX_CYCLES`, default 5). The live
@@ -124,10 +123,6 @@ view follows it from cycle to cycle, and **Stop after this cycle** ends it early
 
 ### People stay in charge
 
-- **Lesson approval.** Set *New lessons* to *wait for my approval* and a new lesson is `proposed`:
-  no agent sees it until someone approves it. A rejected lesson stays rejected even when its
-  evidence comes back. A run-until-stable that can only improve through a pending lesson stops and
-  says so, instead of repeating itself.
 - **Defects become Jira bugs — once.** Every criterion that fails on the application becomes one
   proposed `jira-bug` publication, carrying the criterion, the test and the failure, and linked to
   the story when filed. Later cycles reference the existing proposal instead of proposing it again.
@@ -154,7 +149,7 @@ reported every cycle until the application is fixed, and the requirements verdic
 
 ### Execution is simulated — for now
 
-Gantry does not yet drive a browser against your application, so `src/lib/agents/executor.ts`
+Autopilot does not yet drive a browser against your application, so `src/lib/agents/executor.ts`
 simulates one, and the run log says so. It is not random: it reads the spec source and fails a test
 for the reasons a real run would (a fixed sleep racing the render, a styling selector that matches
 nothing, a criterion the simulated app violates), so a heal genuinely turns a test green. Replace
@@ -182,7 +177,7 @@ Any Postgres 14+ works; point `DATABASE_URL` at it instead of running `db:up`.
 ### Minimum `.env` to sign in
 
 ```bash
-DATABASE_URL="postgresql://gantry:gantry@localhost:5432/gantry"
+DATABASE_URL="postgresql://autopilot:autopilot@localhost:5432/autopilot"
 AUTH_SECRET="…"               # openssl rand -base64 32
 AUTH_URL="http://localhost:3000"
 AUTH_TRUST_HOST="true"
@@ -215,7 +210,7 @@ ANTHROPIC_API_KEY="sk-ant-…"
 ANTHROPIC_MODEL="claude-sonnet-5"
 ```
 
-Sessions are database-backed httpOnly cookies. Gantry stores no passwords and never asks for one.
+Sessions are database-backed httpOnly cookies. Autopilot stores no passwords and never asks for one.
 
 ---
 
@@ -270,13 +265,13 @@ Then add Google or GitHub credentials and set `ALLOW_DEMO_LOGIN=false`.
 Point Fly.io, Render, Railway, Cloud Run, or a plain VM at that image. Or build it yourself:
 
 ```bash
-docker build -t gantry .
+docker build -t autopilot .
 docker run -p 3000:3000 \
   -e DATABASE_URL="postgresql://…" \
   -e AUTH_SECRET="…" -e AUTH_URL="https://your-domain" -e AUTH_TRUST_HOST=true \
   -e AUTH_GITHUB_ID="…" -e AUTH_GITHUB_SECRET="…" \
   -e ANTHROPIC_API_KEY="…" \
-  gantry
+  autopilot
 ```
 
 On start the container applies pending migrations (`prisma migrate deploy` — reviewed migration
@@ -305,7 +300,7 @@ picks them up, and `/api/ready` reports when none has checked in.
 https://chandan180892.github.io/Agentic-Automation/ serves `docs/` from the default branch
 (Settings → Pages → *Deploy from a branch*, folder `/docs`).
 
-- `docs/index.html` is Gantry running **in the browser**: Autopilot, Backlog, Agents, Runs. The
+- `docs/index.html` is Autopilot running **in the browser**: Autopilot, Backlog, Agents, Runs. The
   agents are simulated on the same logic as the server app's simulator mode — nothing is sent
   anywhere and no key is needed — so anyone can watch the loop plan, test, heal, review and learn.
 - `docs/prototype.html` is the original screen prototype.
