@@ -7,13 +7,13 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: gantry
-      POSTGRES_PASSWORD: gantry
-      POSTGRES_DB: gantry
+      POSTGRES_USER: autopilot
+      POSTGRES_PASSWORD: autopilot
+      POSTGRES_DB: autopilot
     ports: ["5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gantry"]
+      test: ["CMD-SHELL", "pg_isready -U autopilot"]
       interval: 5s
       retries: 10
 
@@ -24,7 +24,7 @@ services:
     ports: ["3000:3000"]
     env_file: [.env]
     environment:
-      DATABASE_URL: postgresql://gantry:gantry@db:5432/gantry
+      DATABASE_URL: postgresql://autopilot:autopilot@db:5432/autopilot
       AUTH_TRUST_HOST: "true"
 
   worker:
@@ -34,7 +34,7 @@ services:
       db: { condition: service_healthy }
     env_file: [.env]
     environment:
-      DATABASE_URL: postgresql://gantry:gantry@db:5432/gantry
+      DATABASE_URL: postgresql://autopilot:autopilot@db:5432/autopilot
       WORKER_MODE: inline
 
 volumes:

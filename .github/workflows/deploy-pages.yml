@@ -1,4 +1,4 @@
-# Publishes docs/ — the in-browser Gantry app (index.html) and the screen prototype — to GitHub
+# Publishes docs/ — the in-browser Autopilot app (index.html) and the screen prototype — to GitHub
 # Pages. The server app is deployed separately; see the deploy section of the README.
 #
 # The site is currently served with Pages set to "Deploy from a branch" (the default branch,

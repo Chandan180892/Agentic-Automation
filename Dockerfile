@@ -1,4 +1,4 @@
-# Gantry — single-container build. Works on Fly.io, Render, Railway, Cloud Run, or a VM.
+# Autopilot — single-container build. Works on Fly.io, Render, Railway, Cloud Run, or a VM.
 FROM node:22-alpine AS deps
 WORKDIR /app
 RUN apk add --no-cache libc6-compat openssl

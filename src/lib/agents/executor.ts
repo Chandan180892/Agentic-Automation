@@ -1,7 +1,7 @@
 /**
  * Test execution for the autopilot.
  *
- * Gantry does not yet drive a real browser against your application, so this is a simulated
+ * Autopilot does not yet drive a real browser against your application, so this is a simulated
  * executor, and every result it produces is labelled `simulated` in the run log. It is not a
  * random-number generator, though: it reads the spec source and fails a test for the same
  * reasons a real run would —

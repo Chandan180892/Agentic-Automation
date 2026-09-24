@@ -61,7 +61,7 @@ export function Rail({
           G
         </span>
         <span className="min-w-0">
-          <b className="block font-display text-[17px] leading-[1.1] tracking-[-0.03em]">Gantry</b>
+          <b className="block font-display text-[17px] leading-[1.1] tracking-[-0.03em]">Autopilot</b>
           <span className="block truncate text-[10.5px] font-semibold uppercase tracking-[0.11em] text-muted">
             {workspaceName}
           </span>

@@ -1,12 +1,12 @@
-# Operating Gantry
+# Operating Autopilot
 
-This covers running Gantry for a team: deployment, configuration, scaling, monitoring, and what
+This covers running Autopilot for a team: deployment, configuration, scaling, monitoring, and what
 to do when something goes wrong. The configuration reference is `.env.example`; every value there
 is validated at boot by `src/lib/env.ts`.
 
 ## Architecture in one paragraph
 
-Gantry is one Next.js deployable backed by Postgres. Requests never run agents themselves: a run
+Autopilot is one Next.js deployable backed by Postgres. Requests never run agents themselves: a run
 is written as a **job** and a **worker** picks it up. The worker runs inside the web server by
 default (`WORKER_MODE=inline`) and can be split out to scale separately. Jobs are claimed with a
 lease (`FOR UPDATE SKIP LOCKED`), renewed while they work; a worker that dies stops renewing, and
@@ -34,13 +34,13 @@ browser ──► Next.js (pages, server actions, /api/*) ──► Postgres ◄
 ### Container
 
 ```bash
-docker build -t gantry .
+docker build -t autopilot .
 docker run -p 3000:3000 \
   -e DATABASE_URL="postgresql://…" \
-  -e AUTH_SECRET="$(openssl rand -base64 32)" -e AUTH_URL="https://gantry.example.com" -e AUTH_TRUST_HOST=true \
+  -e AUTH_SECRET="$(openssl rand -base64 32)" -e AUTH_URL="https://autopilot.example.com" -e AUTH_TRUST_HOST=true \
   -e AUTH_GITHUB_ID=… -e AUTH_GITHUB_SECRET=… \
   -e ANTHROPIC_API_KEY=… \
-  gantry
+  autopilot
 ```
 
 On start the container runs `prisma migrate deploy`, which applies only reviewed migration files
@@ -130,5 +130,5 @@ from the same button. A publish is claimed atomically, so a double click never w
 3. Review the SQL, commit it with the schema change.
 4. Deploys apply it with `prisma migrate deploy`. CI fails if the schema and migrations disagree.
 
-Back up Postgres with your provider's point-in-time recovery. Everything Gantry knows lives in
+Back up Postgres with your provider's point-in-time recovery. Everything Autopilot knows lives in
 the database; the containers are stateless.
