@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import * as P from "./pipeline-schemas";
+import { hasLesson, type Memory } from "./types";
 
 export type SubAgentId =
   | "story-analyzer"
@@ -21,7 +22,7 @@ export interface SubAgentDef<I extends z.ZodType = z.ZodType, O extends z.ZodTyp
   toolDescription: string;
   system: string;
   prompt: (input: z.infer<I>) => string;
-  simulate: (input: z.infer<I>) => z.infer<O>;
+  simulate: (input: z.infer<I>, memory?: Memory) => z.infer<O>;
   maxTokens?: number;
 }
 
@@ -88,15 +89,19 @@ Method:
           ? i.story.acceptanceCriteria.map((c, n) => `${n + 1}. ${c}`)
           : ["NONE — the story has no acceptance criteria."]),
       ].filter(Boolean).join("\n"),
-    simulate: (i) => {
+    simulate: (i, memory) => {
       const criteria = i.story.acceptanceCriteria;
+      // Untaught, the simulator reads only the first three criteria — the shortcut a rushed
+      // reader takes. The verifier finds the gap and forces a revision, and the learner turns
+      // that revision into a lesson that removes the shortcut next time.
+      const read = hasLesson(memory, "behaviour-per-criterion") ? criteria.slice(0, 8) : criteria.slice(0, 3);
       const kinds = ["happy-path", "edge-case", "negative", "regression"] as const;
       return {
         summary: criteria.length
-          ? `${criteria.length} acceptance criteria yield ${Math.min(criteria.length * 2, 6)} testable behaviours.`
+          ? `${criteria.length} acceptance criteria yield ${read.length * 2} testable behaviours.`
           : `${i.story.key} has no acceptance criteria, so nothing here is verifiable as written.`,
         testable: criteria.length > 0,
-        behaviours: criteria.slice(0, 3).flatMap((c, n) => [
+        behaviours: read.flatMap((c, n) => [
           { name: `${i.story.summary} — ${c.slice(0, 48)}`, criterion: c, kind: kinds[0], risk: "medium" as const },
           { name: `${i.story.summary} — ${c.slice(0, 40)} rejected`, criterion: c, kind: kinds[(n % 3) + 1], risk: "low" as const },
         ]),
@@ -292,9 +297,14 @@ file set again, not a diff.`,
             ]
           : []),
       ].join("\n"),
-    simulate: (i) => {
+    simulate: (i, memory) => {
       const s = slug(i.story.key);
       const camel = s.replace(/-/g, "");
+      // Two habits a first draft often has, which only execution exposes: a fixed sleep before
+      // the assertion, and a selector that follows styling rather than behaviour. Lessons from
+      // earlier heals switch each habit off.
+      const fixedWait = !hasLesson(memory, "no-fixed-waits");
+      const styleSelector = !hasLesson(memory, "stable-selectors");
       const specPath = i.create.find((c) => c.kind === "spec")?.path ?? `tests/${s}.spec.ts`;
       const fixturePath = i.create.find((c) => c.kind === "fixture")?.path ?? `fixtures/${s}.ts`;
       const behaviours = i.behaviours.length ? i.behaviours : [{ name: i.story.summary, criterion: "unspecified", kind: "happy-path" }];
@@ -306,10 +316,12 @@ import { ${camel}Fixtures } from '${fixturePath.startsWith("/") ? fixturePath : 
 test.describe('${i.story.key} ${i.story.summary}', () => {
 ${behaviours
   .map(
-    (b) => `  test('${b.name.replace(/'/g, "\\'")}', async ({ page }) => {
+    (b, n) => `  test('${b.name.replace(/'/g, "\\'")}', async ({ page }) => {
     // covers: ${b.criterion.replace(/\n/g, " ")}
     await page.goto(${camel}Fixtures.entryPath);
-    await page.getByTestId('${s}-submit').click();
+    ${styleSelector && b.kind !== "happy-path" ? "await page.locator('.btn-primary').click();" : `await page.getByTestId('${s}-submit').click();`}${
+      fixedWait && n === 0 ? "\n    await page.waitForTimeout(1500);" : ""
+    }
     await expect(page.getByRole('status')).toHaveText(${camel}Fixtures.expectedStatus);
   });`
   )

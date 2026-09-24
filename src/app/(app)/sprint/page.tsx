@@ -42,7 +42,7 @@ export default async function SprintPage({
       });
 
   const [live, allSprints] = await Promise.all([
-    db.run.count({ where: { workspaceId: workspace.id, status: "running" } }),
+    db.run.count({ where: { workspaceId: workspace.id, status: { in: ["running", "queued"] } } }),
     db.sprint.findMany({
       where: { workspaceId: workspace.id },
       orderBy: { createdAt: "desc" },

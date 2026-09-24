@@ -1,14 +1,13 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { SUB_AGENTS, type SubAgentId, type SubAgentDef } from "./pipeline-registry";
 import { agentsAreLive } from "./runtime";
+import { memoryPrompt, type Memory } from "./types";
+import { callStructured } from "./llm";
 import { db } from "@/lib/db";
 import { parseJson } from "@/lib/utils";
 import * as P from "./pipeline-schemas";
 import { listFiles } from "@/lib/atlassian/bitbucket";
 import { bitbucketConfigured } from "@/lib/atlassian/config";
-
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
 
 type Analyzer = z.infer<typeof P.StoryAnalyzerOut>;
 type Clarify = z.infer<typeof P.ClarifyOut>;
@@ -17,14 +16,13 @@ type Author = z.infer<typeof P.SpecAuthorOut>;
 type Verify = z.infer<typeof P.VerifierOut>;
 type Review = z.infer<typeof P.ReviewerOut>;
 
-function toolSchema(schema: z.ZodType) {
-  const json = z.toJSONSchema(schema, { io: "output" }) as Record<string, unknown>;
-  delete json.$schema;
-  return json as Anthropic.Tool.InputSchema;
-}
-
-/** Runs one sub-agent. Same forced-tool-call contract as the top-level agents. */
-async function runSubAgent<T>(id: SubAgentId, input: unknown): Promise<{ output: T; mode: "live" | "simulated" }> {
+/** Runs one sub-agent. Same structured-output contract as the top-level agents. */
+async function runSubAgent<T>(
+  id: SubAgentId,
+  input: unknown,
+  memory?: Memory,
+  runId?: string
+): Promise<{ output: T; mode: "live" | "simulated" }> {
   const def = SUB_AGENTS[id] as unknown as SubAgentDef;
   const parsed = def.input.safeParse(input);
   if (!parsed.success) {
@@ -34,32 +32,21 @@ async function runSubAgent<T>(id: SubAgentId, input: unknown): Promise<{ output:
   }
 
   if (!agentsAreLive()) {
-    return { output: def.output.parse(def.simulate(parsed.data)) as T, mode: "simulated" };
+    return { output: def.output.parse(def.simulate(parsed.data, memory)) as T, mode: "simulated" };
   }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const message = await client.messages.create({
-    model: MODEL,
-    max_tokens: def.maxTokens ?? 4000,
+  const { output } = await callStructured<T>({
+    agent: id,
     system: def.system,
-    tools: [{ name: def.tool, description: def.toolDescription, input_schema: toolSchema(def.output) }],
-    tool_choice: { type: "tool", name: def.tool },
-    messages: [{ role: "user", content: def.prompt(parsed.data) }],
+    volatileSystem: memoryPrompt(memory).trim() || undefined,
+    prompt: def.prompt(parsed.data),
+    tool: def.tool,
+    toolDescription: def.toolDescription,
+    schema: def.output as never,
+    maxTokens: def.maxTokens,
+    runId,
   });
-
-  const block = message.content.find((c) => c.type === "tool_use");
-  if (!block || block.type !== "tool_use") {
-    throw new Error(`${id} returned no structured result (stop reason: ${message.stop_reason}).`);
-  }
-  const out = def.output.safeParse(block.input);
-  if (!out.success) {
-    throw new Error(
-      `${id} returned a result that did not match its schema: ${out.error.issues
-        .map((i) => `${i.path.join(".") || "root"} ${i.message}`)
-        .join("; ")}`
-    );
-  }
-  return { output: out.data as T, mode: "live" };
+  return { output, mode: "live" };
 }
 
 async function log(
@@ -110,8 +97,17 @@ async function endStage(
  * nothing is written to Jira, Xray or Bitbucket here — the reviewer's approval only produces
  * Publication rows for a human to approve.
  */
-export async function runPipeline(opts: { runId: string; storyId: string }): Promise<void> {
+export async function runPipeline(opts: {
+  runId: string;
+  storyId: string;
+  /** Lessons per sub-agent, recalled by the autopilot. A standalone run passes none. */
+  memory?: Partial<Record<SubAgentId, Memory>>;
+  /** Pause between stages so a person watching the live view can follow along. */
+  pace?: () => Promise<void>;
+}): Promise<void> {
   const { runId, storyId } = opts;
+  const mem = (id: SubAgentId) => opts.memory?.[id];
+  const pace = opts.pace ?? (async () => {});
 
   const story = await db.story.findUniqueOrThrow({
     where: { id: storyId },
@@ -143,8 +139,9 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
 
   // ---------------------------------------------------------- 1. analyze --
   await startStage(runId, "story-analyzer");
-  const analysis = (await runSubAgent<Analyzer>("story-analyzer", { story: storyCtx, framework: ws.testFramework })).output;
+  const analysis = (await runSubAgent<Analyzer>("story-analyzer", { story: storyCtx, framework: ws.testFramework }, mem("story-analyzer"), runId)).output;
   await endStage(runId, "story-analyzer", analysis.testable ? "passed" : "blocked", analysis.summary, analysis);
+  await pace();
   for (const b of analysis.behaviours) await log(runId, `behaviour: ${b.name}`, "info", "story-analyzer");
 
   if (!analysis.testable) {
@@ -159,7 +156,7 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
   await startStage(runId, "clarify");
   let clarification: Clarify = { summary: "No ambiguities to resolve.", questions: [], blocked: false, jiraComment: "" };
   if (analysis.ambiguities.length > 0) {
-    clarification = (await runSubAgent<Clarify>("clarify", { story: storyCtx, ambiguities: analysis.ambiguities })).output;
+    clarification = (await runSubAgent<Clarify>("clarify", { story: storyCtx, ambiguities: analysis.ambiguities }, mem("clarify"), runId)).output;
     for (const q of clarification.questions) {
       await log(runId, `${q.blocking ? "[blocking] " : ""}${q.question}`, q.blocking ? "warn" : "info", "clarify");
     }
@@ -174,6 +171,7 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
     }
   }
   await endStage(runId, "clarify", clarification.blocked ? "blocked" : "passed", clarification.summary, clarification);
+  await pace();
 
   if (clarification.blocked) {
     await db.run.update({
@@ -208,9 +206,10 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
       behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
       repoPaths,
       framework: ws.testFramework,
-    })
+    }, mem("asset-resolver"), runId)
   ).output;
   await endStage(runId, "asset-resolver", "passed", resolved.summary, resolved);
+  await pace();
   for (const r of resolved.reuse) await log(runId, `reuse ${r.path} — ${r.why}`, "ok", "asset-resolver");
 
   // -------------------------------------------------------- 4. write specs --
@@ -223,7 +222,7 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
       create: resolved.create.map((c) => ({ path: c.path, kind: c.kind })),
       conventions: resolved.conventions,
       framework: ws.testFramework,
-    })
+    }, mem("spec-author"), runId)
   ).output;
 
   for (const f of authored.files) {
@@ -253,6 +252,7 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
     });
   }
   await endStage(runId, "spec-author", "passed", authored.summary, authored);
+  await pace();
 
   // ------------------------------------------------------------ 5. verify --
   // The verifier is adversarial, so a first pass often finds real defects. Rather than
@@ -266,7 +266,7 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
       behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
       files: authored.files.map((f) => ({ path: f.path, content: f.content })),
       testCases: authored.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })),
-    })
+    }, mem("verifier"), runId)
   ).output;
   for (const d of verified.defects) {
     await log(runId, `[${d.severity}] ${d.path}: ${d.issue}`, d.severity === "minor" ? "info" : "warn", "verifier");
@@ -299,7 +299,7 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
           uncoveredCriteria: uncovered,
           previousFiles: authored.files.map((f) => ({ path: f.path, content: f.content })),
         },
-      })
+      }, mem("spec-author"), runId)
     ).output;
 
     // Replace the previous attempt's output rather than accumulating duplicates.
@@ -328,6 +328,7 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
     }
     authored = revised;
     await endStage(runId, "spec-author", "passed", `revision ${attempt}: ${revised.summary}`, revised);
+    await pace();
 
     await startStage(runId, "verifier");
     verified = (
@@ -336,7 +337,7 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
         behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
         files: revised.files.map((f) => ({ path: f.path, content: f.content })),
         testCases: revised.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })),
-      })
+      }, mem("verifier"), runId)
     ).output;
     for (const d of verified.defects) {
       await log(runId, `[${d.severity}] ${d.path}: ${d.issue}`, d.severity === "minor" ? "info" : "warn", "verifier");
@@ -351,6 +352,8 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
     verified
   );
 
+  await pace();
+
   // ------------------------------------------------------------ 6. review --
   await startStage(runId, "reviewer");
   const reviewed = (
@@ -363,9 +366,10 @@ export async function runPipeline(opts: { runId: string; storyId: string }): Pro
         defects: verified.defects.map((d) => ({ path: d.path, severity: d.severity, issue: d.issue })),
         coverage: verified.coverage.map((c) => ({ criterion: c.criterion, covered: c.covered })),
       },
-    })
+    }, mem("reviewer"), runId)
   ).output;
   await endStage(runId, "reviewer", reviewed.verdict === "approve" ? "passed" : "blocked", reviewed.summary, reviewed);
+  await pace();
 
   // Propose the publications. Still nothing written to Atlassian.
   if (reviewed.publishReady) {

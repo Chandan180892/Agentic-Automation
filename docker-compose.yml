@@ -1,0 +1,41 @@
+# Local development and a production-shaped stack in one file.
+#
+#   docker compose up -d db          # just Postgres, for `npm run dev`
+#   docker compose up --build        # Postgres + the app (inline worker)
+#   docker compose --profile scale up --build   # + a separate worker; web runs WORKER_MODE=off
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gantry
+      POSTGRES_PASSWORD: gantry
+      POSTGRES_DB: gantry
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gantry"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["3000:3000"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql://gantry:gantry@db:5432/gantry
+      AUTH_TRUST_HOST: "true"
+
+  worker:
+    profiles: ["scale"]
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql://gantry:gantry@db:5432/gantry
+      WORKER_MODE: inline
+
+volumes:
+  pgdata:

@@ -6,7 +6,12 @@ Gantry reads your **Jira** stories, walks each one through a chain of six sub-ag
 **Xray** test cases and a **Bitbucket** branch and pull request. Nothing is written to your systems
 until you approve it.
 
-- **Design prototype:** `docs/index.html` — published at https://chandan180892.github.io/Agentic-Automation/
+The **Autopilot** closes the loop: it plans the sprint, automates every story, executes the tests,
+heals what drifted, reviews each acceptance criterion against the evidence, reports, and **learns** —
+so the next cycle makes fewer of the same mistakes. You watch all of it live.
+
+- **Try it in the browser:** https://chandan180892.github.io/Agentic-Automation/ — the agents run in your browser (simulated), no setup
+- **Screen prototype:** `docs/prototype.html`
 - **Stack:** Next.js 16 (App Router, FE + BE in one deployable), Auth.js v5, Prisma, Anthropic SDK
 - **Integrations:** Jira Cloud, Xray Cloud, Bitbucket Cloud
 
@@ -21,6 +26,9 @@ until you approve it.
 | `qe-auto-heal` | Repair, one spec | failure → verified patch |
 | `batch-heal` | Repair, fleet | *n* failures → one PR |
 | `qe-insights` | Analysis | run history → signals |
+| `requirements-reviewer` | Review | criteria + results → traceability verdict |
+| `cycle-reporter` | Report | cycle metrics → report |
+| `learner` | Learning | cycle evidence → lessons |
 
 ### Inside `qe-pipeline`
 
@@ -57,6 +65,7 @@ app that mutates Jira, Xray or Bitbucket:
 | Proposal | What approving it does |
 |---|---|
 | `jira-comment` | Posts `clarify`'s questions on the story |
+| `jira-bug` | Files an application defect the autopilot found, linked to its story |
 | `xray-tests` | Creates the Xray test cases and records their keys |
 | `bitbucket-branch` | Commits the files to a branch and opens the pull request |
 
@@ -82,6 +91,80 @@ sign-in is configured.
 
 ---
 
+## Autopilot — the self-learning loop
+
+**Autopilot** in the app runs one cycle over a sprint and streams it live:
+
+```
+ recall → plan → automate → execute → heal → review → report → learn
+    ↑                                                            │
+    └──────────── lessons feed the next cycle's agents ──────────┘
+```
+
+| Phase | Who | What happens |
+|---|---|---|
+| Recall | memory | Loads the workspace's lessons and injects each into the agent it is scoped to |
+| Plan | `sprint-planner` | Sizes, orders and commits the sprint; drafts missing acceptance criteria |
+| Automate | `qe-pipeline` | Each committed story through the six sub-agents |
+| Execute | executor | Runs every generated test |
+| Heal | `qe-auto-heal` | Patches selector and timing drift and re-runs; escalates application defects untouched |
+| Review | `requirements-reviewer` | Every acceptance criterion judged **met / not met / untested / blocked** from execution evidence |
+| Report | `cycle-reporter` | Verdict first, then what the agents fixed themselves, what needs a person, and the trend |
+| Learn | `learner` | Reduces the cycle's heals, revisions and defects to root causes, and stores one lesson per cause |
+
+The live view (`/autopilot/<id>`) shows a **map of the agents** with the one holding the work
+highlighted (down to the pipeline sub-agent), the phases, one merged log from every agent in the
+cycle, each story's tests (first run → after heal), the requirements matrix, proposed Jira bugs,
+the report and what was learned. `/autopilot` shows the **learning curve** across cycles and the
+workspace's **memory**, with each lesson's confidence history.
+
+**Run until stable** keeps starting cycles until one learns nothing new — no new lesson, nothing
+healed, nothing revised — then stops by itself (at most `AUTOPILOT_MAX_CYCLES`, default 5). The live
+view follows it from cycle to cycle, and **Stop after this cycle** ends it early.
+
+### People stay in charge
+
+- **Lesson approval.** Set *New lessons* to *wait for my approval* and a new lesson is `proposed`:
+  no agent sees it until someone approves it. A rejected lesson stays rejected even when its
+  evidence comes back. A run-until-stable that can only improve through a pending lesson stops and
+  says so, instead of repeating itself.
+- **Defects become Jira bugs — once.** Every criterion that fails on the application becomes one
+  proposed `jira-bug` publication, carrying the criterion, the test and the failure, and linked to
+  the story when filed. Later cycles reference the existing proposal instead of proposing it again.
+  As with every other write, nothing reaches Jira until you approve it.
+
+### How it learns
+
+Learning is in-context, not fine-tuning. A lesson is a one-sentence rule backed by evidence, stored
+per workspace and appended to the system prompt of the agent it is scoped to:
+
+| Signal in a cycle | Lesson | Injected into |
+|---|---|---|
+| A heal removed a fixed `waitForTimeout` | `no-fixed-waits` | `spec-author` |
+| A heal swapped a styling-class selector | `stable-selectors` | `spec-author` |
+| The verifier found an uncovered criterion | `behaviour-per-criterion` | `story-analyzer` |
+| A test failed on the application | `known-defect-<story>` | `qe-auto-heal` |
+
+Lessons correct themselves. Seen again → **reinforced**. Applied and the problem stayed away →
+**confirmed**. Applied and the problem came back anyway → **contradicted**, confidence drops, and
+below 0.25 the lesson **retires**. Anything in memory can be forgotten from the UI.
+
+Learning never touches an assertion. A test that caught a real defect stays red, the defect is
+reported every cycle until the application is fixed, and the requirements verdict stays `reject`.
+
+### Execution is simulated — for now
+
+Gantry does not yet drive a browser against your application, so `src/lib/agents/executor.ts`
+simulates one, and the run log says so. It is not random: it reads the spec source and fails a test
+for the reasons a real run would (a fixed sleep racing the render, a styling selector that matches
+nothing, a criterion the simulated app violates), so a heal genuinely turns a test green. Replace
+`executeSpec` with a call to your runner and nothing else changes.
+
+With no `ANTHROPIC_API_KEY` the simulated agents pause briefly between steps so the cycle can be
+watched; `AUTOPILOT_PACE_MS` overrides the pause (`0` for none).
+
+---
+
 ## Run it locally
 
 ```bash
@@ -89,14 +172,17 @@ git clone https://github.com/chandan180892/agentic-automation.git
 cd agentic-automation
 npm install
 cp .env.example .env          # then fill it in — see below
-npm run db:push               # creates dev.db
-npm run dev                   # http://localhost:3000
+npm run db:up                 # Postgres 16 in Docker (docker-compose.yml)
+npm run db:deploy             # applies the migrations
+npm run dev                   # http://localhost:3000 — the job worker starts with it
 ```
+
+Any Postgres 14+ works; point `DATABASE_URL` at it instead of running `db:up`.
 
 ### Minimum `.env` to sign in
 
 ```bash
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://gantry:gantry@localhost:5432/gantry"
 AUTH_SECRET="…"               # openssl rand -base64 32
 AUTH_URL="http://localhost:3000"
 AUTH_TRUST_HOST="true"
@@ -167,7 +253,7 @@ The app is FE + BE in one Next.js deployable.
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Chandan180892/Agentic-Automation)
 
 `render.yaml` provisions the web service **and** a Postgres database together, generates
-`AUTH_SECRET`, and switches Prisma to the Postgres provider during the build. Or do it by hand:
+`AUTH_SECRET`, and applies the migrations on start. Or do it by hand:
 Render → **New → Blueprint** → point at this repo → Apply.
 
 It boots with `ALLOW_DEMO_LOGIN=true`, so you can sign in and use the whole app before creating a
@@ -193,7 +279,8 @@ docker run -p 3000:3000 \
   gantry
 ```
 
-The container applies the schema on boot, so a fresh database needs no extra step.
+On start the container applies pending migrations (`prisma migrate deploy` — reviewed migration
+files only, never a destructive schema rewrite), so a fresh database needs no extra step.
 
 ### Vercel
 
@@ -201,30 +288,30 @@ The container applies the schema on boot, so a fresh database needs no extra ste
 npx vercel --prod
 ```
 
-Set the same environment variables in the project settings. Use Postgres rather than SQLite —
-serverless filesystems do not persist:
+Set the same environment variables in the project settings, with a hosted Postgres. Serverless
+functions cannot keep a job worker alive, so set `WORKER_MODE=off` there and run the worker
+somewhere long-lived — the container image with `WORKER_MODE=inline` and no traffic, or
+`npm run worker` on any machine that can reach the database. Runs stay `queued` until a worker
+picks them up, and `/api/ready` reports when none has checked in.
 
-```bash
-npm run db:postgres     # switches the Prisma provider
-npm run db:push
-```
+### Production
 
-### GitHub Pages
+[docs/OPERATIONS.md](docs/OPERATIONS.md) covers configuration, scaling workers, monitoring
+(`/api/health`, `/api/ready`, structured logs), the runbook, and database changes.
+[SECURITY.md](SECURITY.md) covers roles, approvals, audit, rate limits and spend caps.
 
-The prototype lives at `docs/index.html` and is published two ways, so either works:
+### GitHub Pages — the in-browser app
 
-- **Deploy from a branch** — Settings → Pages → Source: *Deploy from a branch*, branch:
-  `claude/ai-agent-sprint-app-8a2yxn`, folder: `/docs`. No Actions runner involved.
-- **GitHub Actions** — Settings → Pages → Source: *GitHub Actions*. Then
-  `.github/workflows/deploy-pages.yml` republishes on every change to `docs/`.
+https://chandan180892.github.io/Agentic-Automation/ serves `docs/` from the default branch
+(Settings → Pages → *Deploy from a branch*, folder `/docs`).
 
-Pages serves static files only, so it hosts the prototype, not the app.
+- `docs/index.html` is Gantry running **in the browser**: Autopilot, Backlog, Agents, Runs. The
+  agents are simulated on the same logic as the server app's simulator mode — nothing is sent
+  anywhere and no key is needed — so anyone can watch the loop plan, test, heal, review and learn.
+- `docs/prototype.html` is the original screen prototype.
 
-**After deploying, update each OAuth app's callback URL** to
-`https://your-domain/api/auth/callback/<provider>` and set `AUTH_URL` to match, or sign-in will
-fail with a redirect mismatch.
-
----
+Pages serves static files only, so live Claude agents, Jira/Xray/Bitbucket and Postgres need the
+server app deployed as above.
 
 ## Tests
 
@@ -232,18 +319,24 @@ fail with a redirect mismatch.
 npm run test:agents     # top-level agent contracts
 npm run test:pipeline   # all six sub-agents, including the revision loop
 npm run test:e2e        # the orchestrator against a real database
+npm run test:autopilot  # learning cycles: heals, review, lessons, approval, bugs, run-until-stable
+npm run test:platform   # job queue, worker, crash recovery, retention, env validation
 npm run test:auth       # session handling across every authenticated page
-npx tsc --noEmit        # typecheck
+npm test                # all of the above except auth
+npm run typecheck
 ```
 
-`test:auth` needs the app running (`npm start` on port 3210, or set `BASE`).
+The suites need a Postgres database (`DATABASE_URL`). `test:auth` needs the app running
+(`npm start` on port 3210, or set `BASE`).
 
 The suites assert the behaviours that make the pipeline trustworthy, not just that it runs:
 `story-analyzer` refuses to call an unspecified story testable, `clarify` blocks rather than
 guessing, `asset-resolver` never recreates what it reuses, `verifier` reports uncovered criteria
 honestly, `reviewer` refuses to publish uncovered work, a revision closes the gap the verifier
-found, and an end-to-end run proposes publications **without publishing any of them**. CI runs all
-of it on every push.
+found, and an end-to-end run proposes publications **without publishing any of them**. The autopilot
+suite runs two cycles on one sprint and asserts that the second one needs fewer heals and revisions,
+that no heal ever patches an application defect, and that a lesson which does not help is
+contradicted and retired. CI runs all of it on every push.
 
 ---
 
@@ -266,11 +359,18 @@ Jira story
 ## Repository layout
 
 ```
-src/app/(app)/              authenticated screens — sprint, agents, runs, results, settings
-src/lib/agents/             top-level registry, runtime
+src/app/(app)/              authenticated screens — sprint, autopilot, agents, runs, results, settings
+src/app/api/                live-state polling, /api/health, /api/ready
+src/lib/agents/             agent registry and runtime; llm.ts is the one model client
 src/lib/agents/pipeline*.ts the six sub-agents and the orchestrator that runs them
+src/lib/agents/autopilot.ts the self-learning cycle; memory.ts, executor.ts beside it
+src/lib/jobs/               the durable job queue, its handlers and the worker
+src/lib/env.ts, log.ts      validated configuration, structured logging
+src/lib/guard.ts            roles, audit log, rate limits, user-facing action errors
 src/lib/atlassian/          Jira, Xray and Bitbucket Cloud clients
-prisma/schema.prisma        workspaces, sprints, stories, runs, stages, test cases, publications
+src/instrumentation.ts      boot: environment checks and the inline worker
+prisma/schema.prisma        the data model; prisma/migrations holds every change to it
+docs/OPERATIONS.md          deploying, scaling, monitoring, runbook
 docs/index.html             the design prototype (served by GitHub Pages)
-scripts/                    agent, sub-agent, orchestrator and auth suites
+scripts/                    test suites and the standalone worker
 ```

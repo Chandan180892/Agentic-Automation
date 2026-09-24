@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { slugify } from "@/lib/crypto";
 
 export type Session = Awaited<ReturnType<typeof auth>>;
+export type Role = "owner" | "admin" | "member";
 
 /** The signed-in user's workspace, created on demand if the sign-in event missed it. */
 export async function requireWorkspace() {
@@ -14,7 +15,7 @@ export async function requireWorkspace() {
     include: { workspace: true },
     orderBy: { createdAt: "asc" },
   });
-  if (membership) return { session, workspace: membership.workspace };
+  if (membership) return { session, workspace: membership.workspace, role: membership.role as Role };
 
   const label = session.user.name?.split(" ")[0] ?? "My";
   let slug = slugify(`${label}-workspace`);
@@ -28,5 +29,5 @@ export async function requireWorkspace() {
       members: { create: { userId: session.user.id, role: "owner" } },
     },
   });
-  return { session, workspace };
+  return { session, workspace, role: "owner" as Role };
 }

@@ -1,11 +1,12 @@
-# Publishes the design prototype to GitHub Pages. The app itself is a server
-# application and is deployed separately — see the deploy section of the README.
-name: Deploy prototype to Pages
+# Publishes docs/ — the in-browser Gantry app (index.html) and the screen prototype — to GitHub
+# Pages. The server app is deployed separately; see the deploy section of the README.
+#
+# The site is currently served with Pages set to "Deploy from a branch" (the default branch,
+# /docs), which needs no workflow. This workflow is for Pages set to "GitHub Actions"; run it by
+# hand after switching, and add a push trigger back if you keep that setup.
+name: Deploy site to Pages
 
 on:
-  push:
-    branches: [main, claude/ai-agent-sprint-app-8a2yxn]
-    paths: ["docs/**", ".github/workflows/deploy-pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -29,7 +30,7 @@ jobs:
       - name: Build the Pages bundle
         run: |
           mkdir -p _site
-          cp docs/index.html _site/index.html
+          cp -r docs/. _site/
           # Pages runs Jekyll by default, which would swallow files it does not recognise.
           touch _site/.nojekyll
 

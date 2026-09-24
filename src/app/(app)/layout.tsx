@@ -1,21 +1,25 @@
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/workspace";
 import { db } from "@/lib/db";
+import { Suspense } from "react";
 import { Rail } from "@/components/rail";
+import { Notice } from "@/components/notice";
+import { AGENT_LIST } from "@/lib/agents/registry";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireWorkspace();
   if (!ctx) redirect("/login");
   const { session, workspace } = ctx;
 
-  const [agentCount, liveRuns, sprint] = await Promise.all([
-    Promise.resolve(5),
-    db.run.count({ where: { workspaceId: workspace.id, status: "running" } }),
+  const [agentCount, liveRuns, sprint, autopilot] = await Promise.all([
+    Promise.resolve(AGENT_LIST.length),
+    db.run.count({ where: { workspaceId: workspace.id, status: { in: ["running", "queued"] } } }),
     db.sprint.findFirst({
       where: { workspaceId: workspace.id },
       orderBy: { createdAt: "desc" },
       select: { name: true },
     }),
+    db.run.count({ where: { workspaceId: workspace.id, agent: "autopilot", status: { in: ["running", "queued"] } } }),
   ]);
 
   return (
@@ -32,9 +36,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             sprint: sprint?.name ?? "none",
             agents: agentCount,
             live: liveRuns,
+            autopilot,
           }}
         />
-        <div className="flex min-w-0 flex-col bg-surface">{children}</div>
+        <div className="flex min-w-0 flex-col bg-surface">
+          <Suspense fallback={null}>
+            <Notice />
+          </Suspense>
+          {children}
+        </div>
       </div>
     </div>
   );

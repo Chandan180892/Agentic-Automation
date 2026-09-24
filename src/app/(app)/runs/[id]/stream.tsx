@@ -45,7 +45,7 @@ export function RunStream({
         const data = (await res.json()) as { events: Ev[]; status: string };
         if (stop) return;
         if (data.events.length) setEvents((prev) => [...prev, ...data.events]);
-        if (data.status !== "running") setDone(true);
+        if (data.status !== "running" && data.status !== "queued") setDone(true);
       } catch {
         /* a dropped poll is not worth interrupting the page for */
       }

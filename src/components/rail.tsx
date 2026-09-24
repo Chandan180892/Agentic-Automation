@@ -18,6 +18,7 @@ const ITEMS: { group: string; links: NavLink[] }[] = [
     group: "Workspace",
     links: [
       { href: "/sprint", label: "Sprint planner", key: "sprint", d: "M4 6h16M4 12h10M4 18h13" },
+      { href: "/autopilot", label: "Autopilot", key: "autopilot", d: "M21 12a9 9 0 1 1-3-6.7M21 4v5h-5M12 8v4l3 2" },
       { href: "/agents", label: "Agents", key: "agents", d: "M12 8V4M9 14h.01M15 14h.01", rect: [4, 8, 16, 12] as [number, number, number, number] },
     ],
   },
@@ -38,11 +39,11 @@ export function Rail({
 }: {
   workspaceName: string;
   user: { name: string; email: string; image: string | null };
-  counts: { sprint: string; agents: number; live: number };
+  counts: { sprint: string; agents: number; live: number; autopilot?: number };
 }) {
   const path = usePathname();
   const tick = (key: string | null) =>
-    key === "sprint" ? counts.sprint : key === "agents" ? String(counts.agents) : key === "live" ? String(counts.live) : null;
+    key === "sprint" ? counts.sprint : key === "autopilot" ? (counts.autopilot ? "live" : null) : key === "agents" ? String(counts.agents) : key === "live" ? String(counts.live) : null;
 
   const initials =
     user.name

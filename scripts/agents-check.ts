@@ -25,7 +25,7 @@ const STORY = {
 
 async function main() {
   console.log(`mode: ${agentsAreLive() ? "LIVE (calling the model)" : "SIMULATED (no API key)"}\n`);
-  check("registry exposes the five top-level agents", AGENT_LIST.length === 5, `${AGENT_LIST.length}`);
+  check("registry exposes the eight top-level agents", AGENT_LIST.length === 8, `${AGENT_LIST.length}`);
   check("pipeline exposes six sub-agents", SUB_AGENT_LIST.length === 6, `${SUB_AGENT_LIST.length}`);
 
   // sprint-planner
@@ -91,6 +91,38 @@ async function main() {
   });
   check("qe-insights spots the flaky spec", ins.output.flakes.length === 1);
   check("qe-insights makes a recommendation", ins.output.recommendation.length > 10);
+
+  // requirements-reviewer — a failing test on a criterion means not met, whatever else passed
+  const rr = await invokeAgent<{ verdict: string; criteria: { criterion: string; status: string }[] }>("requirements-reviewer", {
+    stories: [
+      {
+        key: "PAY-806",
+        title: "Retry once",
+        acceptanceCriteria: ["A 5xx is retried exactly once.", "A hard decline is surfaced immediately.", "Retries are logged."],
+        pipeline: "needs_review",
+        tests: [
+          { name: "retry", criterion: "A 5xx is retried exactly once.", status: "failed", note: "received 3 calls" },
+          { name: "decline", criterion: "A hard decline is surfaced immediately.", status: "healed" },
+        ],
+      },
+    ],
+  });
+  const st = (c: string) => rr.output.criteria.find((x) => x.criterion.startsWith(c))?.status;
+  check("requirements-reviewer marks a failed criterion not met", st("A 5xx") === "not-met", st("A 5xx"));
+  check("requirements-reviewer counts a healed test as met", st("A hard decline") === "met", st("A hard decline"));
+  check("requirements-reviewer does not round an uncovered criterion up", st("Retries are logged") === "untested", st("Retries are logged"));
+  check("requirements-reviewer rejects when a criterion is not met", rr.output.verdict === "reject", rr.output.verdict);
+
+  // learner — five occurrences of one root cause are one lesson, scoped to the agent that caused it
+  const ln = await invokeAgent<{ lessons: { key: string; scope: string }[] }>("learner", {
+    signals: [
+      ...["a", "b", "c", "d", "e"].map((k) => ({ kind: "fixed-wait", storyKey: `PAY-${k}`, detail: "await page.waitForTimeout(1500);" })),
+      { kind: "app-bug", storyKey: "PAY-806", detail: "expected 2 calls, received 3" },
+    ],
+    known: [],
+  });
+  check("learner reduces repeats to one lesson per root cause", ln.output.lessons.length === 2, `${ln.output.lessons.length}`);
+  check("learner scopes a test-writing lesson to spec-author", ln.output.lessons.find((l) => l.key === "no-fixed-waits")?.scope === "spec-author");
 
   // input validation is enforced
   let rejected = false;
