@@ -125,6 +125,8 @@ export async function runCycle(opts: { runId: string; paceMs?: number }): Promis
   const { runId } = opts;
   const paceMs = opts.paceMs ?? defaultPaceMs();
   const pace = () => (paceMs ? new Promise<void>((r) => setTimeout(r, paceMs)) : Promise.resolve());
+  /** A shorter pause between items inside a phase (one spec, one heal), so the live view can follow. */
+  const beat = () => (paceMs ? new Promise<void>((r) => setTimeout(r, Math.round(paceMs / 3))) : Promise.resolve());
 
   const run = await db.run.findUniqueOrThrow({ where: { id: runId } });
   const workspaceId = run.workspaceId;
@@ -318,6 +320,7 @@ export async function runCycle(opts: { runId: string; paceMs?: number }): Promis
     include: { run: { select: { storyId: true, story: { select: { key: true } } } } },
   });
   for (const spec of specs) {
+    await beat();
     const storyKey = spec.run.story?.key ?? "";
     const results = executeSpec(spec.path, spec.content);
     for (const r of results) {
@@ -337,6 +340,7 @@ export async function runCycle(opts: { runId: string; paceMs?: number }): Promis
   // --------------------------------------------------------------- heal --
   await begin("heal");
   for (const t of out.tests.filter((x) => x.status === "failed")) {
+    await beat();
     const spec = specs.find((s) => s.path === t.path && (s.run.story?.key ?? "") === t.storyKey);
     if (!spec) continue;
     let current: ExecutedTest = t;

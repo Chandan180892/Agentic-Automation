@@ -10,8 +10,8 @@ The **Autopilot** closes the loop: it plans the sprint, automates every story, e
 heals what drifted, reviews each acceptance criterion against the evidence, reports, and **learns** —
 so the next cycle makes fewer of the same mistakes. You watch all of it live.
 
-- **Design prototype:** `docs/index.html` — published at https://chandan180892.github.io/Agentic-Automation/
-- **Autopilot replica:** `docs/autopilot.html` — the learning loop running in your browser, no setup (on Pages at `/autopilot.html`)
+- **Try it in the browser:** https://chandan180892.github.io/Agentic-Automation/ — the agents run in your browser (simulated), no setup
+- **Screen prototype:** `docs/prototype.html`
 - **Stack:** Next.js 16 (App Router, FE + BE in one deployable), Auth.js v5, Prisma, Anthropic SDK
 - **Integrations:** Jira Cloud, Xray Cloud, Bitbucket Cloud
 
@@ -300,22 +300,18 @@ picks them up, and `/api/ready` reports when none has checked in.
 (`/api/health`, `/api/ready`, structured logs), the runbook, and database changes.
 [SECURITY.md](SECURITY.md) covers roles, approvals, audit, rate limits and spend caps.
 
-### GitHub Pages
+### GitHub Pages — the in-browser app
 
-The prototype lives at `docs/index.html` and is published two ways, so either works:
+https://chandan180892.github.io/Agentic-Automation/ serves `docs/` from the default branch
+(Settings → Pages → *Deploy from a branch*, folder `/docs`).
 
-- **Deploy from a branch** — Settings → Pages → Source: *Deploy from a branch*, branch:
-  `claude/ai-agent-sprint-app-8a2yxn`, folder: `/docs`. No Actions runner involved.
-- **GitHub Actions** — Settings → Pages → Source: *GitHub Actions*. Then
-  `.github/workflows/deploy-pages.yml` republishes on every change to `docs/`.
+- `docs/index.html` is Gantry running **in the browser**: Autopilot, Backlog, Agents, Runs. The
+  agents are simulated on the same logic as the server app's simulator mode — nothing is sent
+  anywhere and no key is needed — so anyone can watch the loop plan, test, heal, review and learn.
+- `docs/prototype.html` is the original screen prototype.
 
-Pages serves static files only, so it hosts the prototype, not the app.
-
-**After deploying, update each OAuth app's callback URL** to
-`https://your-domain/api/auth/callback/<provider>` and set `AUTH_URL` to match, or sign-in will
-fail with a redirect mismatch.
-
----
+Pages serves static files only, so live Claude agents, Jira/Xray/Bitbucket and Postgres need the
+server app deployed as above.
 
 ## Tests
 

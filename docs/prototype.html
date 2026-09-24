@@ -1,0 +1,1053 @@
+<title>Gantry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#EDF0F5; --surface:#FFFFFF; --surface-2:#F6F8FB; --surface-3:#EAEFF6;
+  --ink:#0D1526; --ink-2:#3C4A61; --muted:#6B7C96;
+  --line:#D6DDE8; --line-soft:#E6EBF2;
+  --accent:#1B44C8; --accent-ink:#FFFFFF; --accent-soft:#E4EAFC; --accent-line:#B9C7F4;
+  --pass:#0A7C4A; --pass-soft:#DEF3E8;
+  --fail:#B02318; --fail-soft:#FBE4E1;
+  --heal:#A85C08; --heal-soft:#FBEDD9;
+  --live:#0B6E8C; --live-soft:#DBF0F7;
+  --grid:rgba(27,68,200,.07);
+  --shadow:0 1px 2px rgba(13,21,38,.06),0 10px 28px -14px rgba(13,21,38,.22);
+  --shadow-lift:0 2px 4px rgba(13,21,38,.07),0 18px 44px -18px rgba(13,21,38,.30);
+  --r:10px;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#080C14; --surface:#0F1725; --surface-2:#131D2E; --surface-3:#182337;
+    --ink:#E8EEF9; --ink-2:#B7C4D8; --muted:#7F91AB;
+    --line:#233149; --line-soft:#1A2437;
+    --accent:#7A9BFF; --accent-ink:#08101F; --accent-soft:#17243F; --accent-line:#2F4574;
+    --pass:#43D08D; --pass-soft:#0E2A20;
+    --fail:#FF8E7E; --fail-soft:#2D1613;
+    --heal:#F0B256; --heal-soft:#2B1E0D;
+    --live:#5FC8EA; --live-soft:#0B2632;
+    --grid:rgba(122,155,255,.07);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.7);
+    --shadow-lift:0 2px 4px rgba(0,0,0,.45),0 18px 44px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#080C14; --surface:#0F1725; --surface-2:#131D2E; --surface-3:#182337;
+  --ink:#E8EEF9; --ink-2:#B7C4D8; --muted:#7F91AB;
+  --line:#233149; --line-soft:#1A2437;
+  --accent:#7A9BFF; --accent-ink:#08101F; --accent-soft:#17243F; --accent-line:#2F4574;
+  --pass:#43D08D; --pass-soft:#0E2A20;
+  --fail:#FF8E7E; --fail-soft:#2D1613;
+  --heal:#F0B256; --heal-soft:#2B1E0D;
+  --live:#5FC8EA; --live-soft:#0B2632;
+  --grid:rgba(122,155,255,.07);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.7);
+  --shadow-lift:0 2px 4px rgba(0,0,0,.45),0 18px 44px -18px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--f-body); font-size:14px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--f-display); margin:0; letter-spacing:-.02em; text-wrap:balance; font-weight:700}
+p{margin:0}
+button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+a{color:var(--accent);text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1320px;margin:0 auto;padding:20px 20px 56px}
+.frame{
+  border:1px solid var(--line); border-radius:16px; overflow:hidden;
+  background:var(--surface); box-shadow:var(--shadow-lift);
+  display:grid; grid-template-columns:238px 1fr; min-height:760px;
+}
+/* rail */
+.rail{
+  background:var(--surface-2); border-right:1px solid var(--line);
+  display:flex; flex-direction:column; gap:4px; padding:16px 12px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 18px}
+.mark{
+  width:30px;height:30px;border-radius:8px;flex:none;
+  background:var(--accent);color:var(--accent-ink);
+  display:grid;place-items:center;font-family:var(--f-display);font-weight:800;font-size:15px;
+  box-shadow:inset 0 -2px 0 rgba(0,0,0,.18);
+}
+.brand b{font-family:var(--f-display);font-size:17px;letter-spacing:-.03em;display:block;line-height:1.1}
+.brand span{font-size:10.5px;color:var(--muted);letter-spacing:.11em;text-transform:uppercase;font-weight:600}
+.rail-label{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:14px 10px 6px}
+.navbtn{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:8px 10px;border-radius:8px;color:var(--ink-2);font-weight:500;font-size:13.5px;
+  text-align:left;transition:background .13s,color .13s;
+}
+.navbtn:hover{background:var(--surface-3);color:var(--ink)}
+.navbtn[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.navbtn .ic{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.navbtn .tick{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--muted);font-weight:500}
+.rail-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:12px}
+.who{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px}
+.who:hover{background:var(--surface-3)}
+.av{width:26px;height:26px;border-radius:50%;flex:none;background:linear-gradient(140deg,var(--accent),var(--live));color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700}
+.who .n{font-size:12.5px;font-weight:600;line-height:1.25}
+.who .e{font-size:11px;color:var(--muted);line-height:1.25}
+
+/* main */
+.main{display:flex;flex-direction:column;min-width:0;background:var(--surface)}
+.bar{
+  display:flex;align-items:center;gap:14px;padding:14px 22px;
+  border-bottom:1px solid var(--line);background:var(--surface);
+}
+.crumb{font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+.crumb b{color:var(--ink-2);font-weight:500}
+.bar h2{font-size:16px;letter-spacing:-.025em}
+.bar .sp{margin-left:auto}
+.pane{padding:22px;overflow:auto;flex:1;min-height:0}
+
+/* ---------- primitives ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+.card.flat{box-shadow:none;background:var(--surface-2)}
+.card-h{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line-soft)}
+.card-h h3{font-size:13.5px;letter-spacing:-.01em}
+.card-h .sp{margin-left:auto}
+.card-b{padding:16px}
+.blueprint{
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:22px 22px;
+}
+.pill{
+  display:inline-flex;align-items:center;gap:5px;padding:2.5px 8px;border-radius:999px;
+  font-size:11px;font-weight:600;letter-spacing:.01em;border:1px solid transparent;white-space:nowrap;
+}
+.pill .dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
+.p-pass{background:var(--pass-soft);color:var(--pass);border-color:color-mix(in srgb,var(--pass) 26%,transparent)}
+.p-fail{background:var(--fail-soft);color:var(--fail);border-color:color-mix(in srgb,var(--fail) 26%,transparent)}
+.p-heal{background:var(--heal-soft);color:var(--heal);border-color:color-mix(in srgb,var(--heal) 26%,transparent)}
+.p-live{background:var(--live-soft);color:var(--live);border-color:color-mix(in srgb,var(--live) 26%,transparent)}
+.p-idle{background:var(--surface-3);color:var(--muted);border-color:var(--line)}
+.p-acc{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:8px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  font-size:12.5px;font-weight:600;transition:background .13s,border-color .13s,transform .08s;
+}
+.btn:hover{background:var(--surface-3);border-color:var(--accent-line)}
+.btn:active{transform:translateY(1px)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.sm{padding:5px 10px;font-size:11.5px;border-radius:7px}
+.btn .ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.grid{display:grid;gap:16px}
+.lbl{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.sub{font-size:12.5px;color:var(--muted);line-height:1.5}
+.hr{height:1px;background:var(--line-soft);border:0;margin:0}
+.bar-track{height:5px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.bar-fill{height:100%;border-radius:999px;background:var(--accent);transition:width .5s cubic-bezier(.4,0,.2,1)}
+
+/* ---------- sign in ---------- */
+.signin{display:grid;grid-template-columns:1.05fr .95fr;min-height:760px}
+.si-left{
+  background:var(--surface-2);border-right:1px solid var(--line);
+  padding:52px 48px;display:flex;flex-direction:column;
+}
+.si-left h1{font-size:40px;line-height:1.04;letter-spacing:-.035em;margin:26px 0 16px;max-width:13ch}
+.si-left h1 em{font-style:normal;color:var(--accent)}
+.si-lede{font-size:15px;color:var(--ink-2);max-width:46ch;line-height:1.6}
+.chain{margin-top:auto;display:flex;flex-direction:column;gap:0}
+.chain-row{display:flex;align-items:center;gap:13px;padding:11px 0}
+.chain-ic{
+  width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--line);
+}
+.chain-ic svg{width:15px;height:15px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chain-row .t{font-size:13px;font-weight:600}
+.chain-row .d{font-size:12px;color:var(--muted)}
+.chain-line{width:1px;height:12px;background:var(--line);margin-left:15px}
+.si-right{padding:52px 48px;display:flex;flex-direction:column;justify-content:center;gap:22px}
+.si-right h2{font-size:24px;letter-spacing:-.03em}
+.oauth{
+  display:flex;align-items:center;gap:11px;width:100%;padding:12px 15px;border-radius:10px;
+  border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:14px;
+  transition:border-color .14s,background .14s,box-shadow .14s;
+}
+.oauth:hover{border-color:var(--accent-line);background:var(--surface-2);box-shadow:var(--shadow)}
+.oauth svg{width:19px;height:19px;flex:none}
+.oauth .go{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+.fine{font-size:11.5px;color:var(--muted);line-height:1.6}
+
+/* ---------- planner ---------- */
+.split{display:grid;grid-template-columns:1fr 372px;gap:16px;align-items:start}
+.story{
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;
+  padding:13px 15px;border-bottom:1px solid var(--line-soft);transition:background .13s;
+}
+.story:last-child{border-bottom:0}
+.story:hover{background:var(--surface-2)}
+.ck{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line);margin-top:3px;flex:none;display:grid;place-items:center}
+.ck[data-on="1"]{background:var(--accent);border-color:var(--accent)}
+.ck[data-on="1"]::after{content:"";width:8px;height:4.5px;border-left:1.8px solid var(--accent-ink);border-bottom:1.8px solid var(--accent-ink);transform:rotate(-45deg) translate(1px,-1px)}
+.story .key{font-family:var(--f-mono);font-size:11px;color:var(--muted);font-weight:500}
+.story .ttl{font-size:13.5px;font-weight:600;line-height:1.4;margin-top:1px}
+.story .meta{display:flex;gap:7px;margin-top:7px;flex-wrap:wrap}
+.pts{
+  font-family:var(--f-mono);font-size:12.5px;font-weight:600;min-width:30px;text-align:right;
+  color:var(--ink-2);padding-top:2px;
+}
+.cap{display:flex;flex-direction:column;gap:9px}
+.cap-row{display:flex;justify-content:space-between;font-size:12.5px}
+.cap-row b{font-family:var(--f-mono);font-weight:600}
+.agent-out{
+  background:var(--surface-2);border:1px solid var(--line-soft);border-left:2px solid var(--accent);
+  border-radius:0 8px 8px 0;padding:12px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.6;
+}
+.agent-out strong{color:var(--ink);font-weight:600}
+
+/* ---------- agents ---------- */
+.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(288px,1fr));gap:14px}
+.agent{
+  border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
+  padding:16px;display:flex;flex-direction:column;gap:11px;transition:border-color .15s,box-shadow .15s,transform .15s;
+}
+.agent:hover{border-color:var(--accent-line);box-shadow:var(--shadow);transform:translateY(-1px)}
+.agent-top{display:flex;align-items:flex-start;gap:11px}
+.agent-mk{
+  width:32px;height:32px;border-radius:8px;flex:none;display:grid;place-items:center;
+  background:var(--accent-soft);border:1px solid var(--accent-line);
+}
+.agent-mk svg{width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.agent h4{font-family:var(--f-mono);font-size:12.5px;font-weight:600;letter-spacing:-.01em}
+.agent .role{font-size:11px;color:var(--muted);margin-top:1px}
+.agent .desc{font-size:12.5px;color:var(--ink-2);line-height:1.55}
+.io{display:flex;gap:8px;align-items:center;font-family:var(--f-mono);font-size:10.5px;color:var(--muted)}
+.io .tag{background:var(--surface-3);border:1px solid var(--line-soft);border-radius:5px;padding:2px 6px}
+.io .ar{color:var(--accent-line)}
+.agent-foot{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:11px;border-top:1px solid var(--line-soft)}
+.agent-foot .runs{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-left:auto}
+
+/* ---------- pipeline ---------- */
+.flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 2px 12px}
+.node{
+  flex:none;width:158px;border:1px solid var(--line);border-radius:9px;background:var(--surface);
+  padding:11px 12px;display:flex;flex-direction:column;gap:7px;position:relative;
+}
+.node[data-s="run"]{border-color:color-mix(in srgb,var(--live) 45%,transparent);box-shadow:0 0 0 3px var(--live-soft)}
+.node[data-s="done"]{border-color:color-mix(in srgb,var(--pass) 32%,transparent)}
+.node[data-s="wait"]{opacity:.55}
+.node .nm{font-family:var(--f-mono);font-size:11px;font-weight:600}
+.node .st{font-size:11px;color:var(--muted)}
+.node .spark{height:3px;border-radius:2px;background:var(--surface-3);overflow:hidden}
+.node .spark i{display:block;height:100%;background:var(--live);width:0;transition:width .4s linear}
+.node[data-s="done"] .spark i{background:var(--pass);width:100%}
+.link{flex:none;width:26px;display:grid;place-items:center}
+.link svg{width:26px;height:12px;stroke:var(--line);stroke-width:1.6;fill:none}
+.link[data-on="1"] svg{stroke:var(--accent)}
+.term{
+  background:#0A1120;border:1px solid var(--line);border-radius:9px;overflow:hidden;
+}
+.term-h{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.03)}
+.term-h .lbl{color:#7E90AC}
+.term-h .sp{margin-left:auto}
+.term-b{
+  font-family:var(--f-mono);font-size:11.5px;line-height:1.75;padding:12px 14px;
+  height:284px;overflow:auto;color:#C6D3E6;
+}
+.term-b .ln{display:flex;gap:10px;white-space:pre-wrap;word-break:break-word}
+.term-b .ts{color:#54657F;flex:none}
+.term-b .ag{color:#8CA9FF;flex:none;font-weight:500}
+.term-b .ok{color:#4FD494}
+.term-b .er{color:#FF9182}
+.term-b .wn{color:#F2B65E}
+.term-b .dim{color:#7E90AC}
+.cursor{display:inline-block;width:7px;height:13px;background:#8CA9FF;vertical-align:-2px;animation:blink 1.05s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.asset{
+  display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line-soft);
+  border-radius:8px;background:var(--surface-2);
+}
+.asset svg{width:15px;height:15px;flex:none;stroke:var(--muted);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.asset .p{font-family:var(--f-mono);font-size:11.5px;font-weight:500}
+.asset .z{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+
+/* ---------- runners ---------- */
+.rn{display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line-soft)}
+.rn:last-child{border-bottom:0}
+.beat{width:9px;height:9px;border-radius:50%;flex:none;position:relative}
+.beat[data-s="up"]{background:var(--pass)}
+.beat[data-s="up"]::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px solid var(--pass);opacity:.55;animation:ping 2s ease-out infinite}
+.beat[data-s="busy"]{background:var(--live)}
+.beat[data-s="busy"]::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px solid var(--live);opacity:.55;animation:ping 1.2s ease-out infinite}
+.beat[data-s="down"]{background:var(--muted)}
+@keyframes ping{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.5);opacity:0}}
+@media (prefers-reduced-motion:reduce){*,*::after{animation:none!important;transition:none!important}}
+.rn .nm{font-family:var(--f-mono);font-size:12.5px;font-weight:600}
+.rn .lo{font-size:11.5px;color:var(--muted);margin-top:2px}
+.gauge{width:96px}
+.gauge .t{font-family:var(--f-mono);font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:4px}
+.code{
+  font-family:var(--f-mono);font-size:11.5px;background:#0A1120;color:#C6D3E6;
+  border-radius:8px;padding:11px 13px;overflow-x:auto;line-height:1.7;border:1px solid var(--line);
+}
+.code .c{color:#54657F}
+.code .k{color:#8CA9FF}
+
+/* ---------- heal ---------- */
+.diff{font-family:var(--f-mono);font-size:11.5px;border:1px solid var(--line-soft);border-radius:8px;overflow:hidden;background:var(--surface-2)}
+.diff .d{display:flex;gap:10px;padding:3px 12px;white-space:pre-wrap;word-break:break-word}
+.diff .d.del{background:var(--fail-soft);color:var(--fail)}
+.diff .d.add{background:var(--pass-soft);color:var(--pass)}
+.diff .g{color:var(--muted);flex:none;width:26px;text-align:right}
+.stat{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.stat > div{padding:14px 16px;border-right:1px solid var(--line-soft)}
+.stat > div:last-child{border-right:0}
+.stat .v{font-family:var(--f-display);font-size:25px;font-weight:700;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat .k{font-size:11px;color:var(--muted);margin-top:3px}
+.stat .dl{font-family:var(--f-mono);font-size:11px;margin-top:5px}
+
+/* ---------- screen toggle ---------- */
+.screen{display:none}
+.screen.on{display:block}
+.tour{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:0 0 16px;
+}
+.tour .lbl{margin-right:2px}
+.chip{
+  padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface);
+  font-size:12px;font-weight:600;color:var(--ink-2);transition:all .13s;
+}
+.chip:hover{border-color:var(--accent-line);color:var(--ink)}
+.chip[aria-current="true"]{background:var(--ink);border-color:var(--ink);color:var(--ground)}
+.note{
+  max-width:1320px;margin:0 auto;padding:0 20px 18px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;
+}
+.note h1{font-size:19px;letter-spacing:-.03em}
+.note p{font-size:12.5px;color:var(--muted)}
+@media (max-width:1080px){
+  .frame{grid-template-columns:1fr}
+  .rail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);align-items:center}
+  .rail-label,.rail-foot,.navbtn .tick{display:none}
+  .brand{padding:0 12px 0 4px}
+  .split{grid-template-columns:1fr}
+  .signin{grid-template-columns:1fr}
+  .si-left{border-right:0;border-bottom:1px solid var(--line);padding:36px 26px}
+  .si-right{padding:36px 26px}
+  .stat{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ---------- pipeline stages ---------- */
+.stage{
+  flex:none;width:170px;border:1px solid var(--line);border-radius:9px;background:var(--surface);
+  padding:11px 12px;display:flex;flex-direction:column;gap:6px;
+}
+.stage[data-s="run"]{border-color:color-mix(in srgb,var(--live) 45%,transparent);box-shadow:0 0 0 3px var(--live-soft)}
+.stage[data-s="passed"]{border-color:color-mix(in srgb,var(--pass) 35%,transparent)}
+.stage[data-s="blocked"]{border-color:color-mix(in srgb,var(--heal) 42%,transparent)}
+.stage[data-s="pending"]{opacity:.5}
+.stage .n{font-family:var(--f-mono);font-size:11px;font-weight:600}
+.stage .r{font-size:10.5px;color:var(--muted);line-height:1.35}
+.stage .num{
+  position:absolute;margin-top:-22px;margin-left:-4px;width:17px;height:17px;border-radius:50%;
+  background:var(--surface-3);border:1px solid var(--line);display:grid;place-items:center;
+  font-family:var(--f-mono);font-size:9.5px;font-weight:700;color:var(--muted);
+}
+.sublist{display:grid;gap:11px;border-top:1px solid var(--line-soft);padding-top:13px;margin-top:13px}
+.sublist li{display:flex;gap:11px;list-style:none}
+.sublist .o{
+  flex:none;width:19px;height:19px;border-radius:50%;background:var(--accent-soft);
+  border:1px solid var(--accent-line);color:var(--accent);display:grid;place-items:center;
+  font-family:var(--f-mono);font-size:10px;font-weight:700;margin-top:1px;
+}
+.sublist h5{font-family:var(--f-mono);font-size:12px;font-weight:600;display:inline}
+.sublist .role{font-size:11px;color:var(--muted);margin-left:7px}
+.sublist p{font-size:12.5px;color:var(--ink-2);line-height:1.5;margin-top:2px}
+
+/* ---------- proposals ---------- */
+.prop{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  border:1px solid var(--line-soft);border-radius:9px;background:var(--surface-2);padding:12px 14px;
+}
+.prop .t{font-size:13px;font-weight:600}
+.prop .d{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-top:2px}
+.prop .sp{margin-left:auto}
+.sysbadge{
+  display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:5px;
+  font-family:var(--f-mono);font-size:10.5px;font-weight:600;border:1px solid var(--line);background:var(--surface);
+}
+.tc{border:1px solid var(--line-soft);border-radius:8px;background:var(--surface-2);overflow:hidden}
+.tc summary{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;cursor:pointer;list-style:none}
+.tc summary::-webkit-details-marker{display:none}
+.tc .s{display:block;font-size:12.5px;font-weight:600;line-height:1.4}
+.tc .c{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+.tc ol{border-top:1px solid var(--line-soft);padding:10px 14px 11px 30px;margin:0;display:grid;gap:8px}
+.tc li{font-size:11.5px;line-height:1.5}
+.tc li b{font-weight:600}
+.tc li .exp{color:var(--muted);display:block}
+.tc li .dat{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);display:block}
+.jira{font-family:var(--f-mono);font-size:11px;color:var(--accent);text-decoration:none}
+.jira:hover{text-decoration:underline}
+</style>
+
+<div class="note">
+  <h1>Gantry — interactive prototype</h1>
+  <p>Click through the rail. Live data is simulated — this is the design the working app was built from.</p>
+  <p><a href="https://github.com/Chandan180892/Agentic-Automation">Source on GitHub →</a></p>
+</div>
+
+<div class="wrap">
+<div class="tour">
+  <span class="lbl">Screens</span>
+  <button class="chip" data-go="signin" aria-current="true">Sign in</button>
+  <button class="chip" data-go="plan">Sprint planner</button>
+  <button class="chip" data-go="agents">Agents</button>
+  <button class="chip" data-go="run">Pipeline run</button>
+  <button class="chip" data-go="results">Results</button>
+  <button class="chip" data-go="settings">Settings</button>
+</div>
+
+<!-- ================= SIGN IN ================= -->
+<section class="screen on" id="s-signin">
+  <div class="frame" style="grid-template-columns:1fr">
+    <div class="signin">
+      <div class="si-left blueprint">
+        <div class="brand" style="padding:0">
+          <div class="mark">G</div>
+          <div><b>Gantry</b><span>Agentic QE</span></div>
+        </div>
+        <h1>Jira in.<br><em>Xray out.</em></h1>
+        <p class="si-lede">Gantry reads your Jira stories, walks each one through six sub-agents, and proposes Xray test cases and a Bitbucket branch. Nothing is written to your systems until you approve it.</p>
+        <div class="chain">
+          <span class="lbl" style="margin-bottom:6px">How a story becomes a suite</span>
+          <div class="chain-row">
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></div>
+            <div><div class="t">Pull the story from Jira</div><div class="d">acceptance criteria, points, labels — criteria parsed even when there is no field for them</div></div>
+          </div>
+          <div class="chain-line"></div>
+          <div class="chain-row">
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+            <div><div class="t">Six sub-agents, in order</div><div class="d">analyze, clarify, resolve assets, author, verify, review</div></div>
+          </div>
+          <div class="chain-line"></div>
+          <div class="chain-row">
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></div>
+            <div><div class="t">It revises its own work</div><div class="d">when the verifier objects, the author fixes it and the verifier re-checks</div></div>
+          </div>
+          <div class="chain-line"></div>
+          <div class="chain-row">
+            <div class="chain-ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></div>
+            <div><div class="t">You approve, then it publishes</div><div class="d">Xray test cases and a Bitbucket PR — never before you say so</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="si-right">
+        <div>
+          <h2>Sign in to Gantry</h2>
+          <p class="sub" style="margin-top:7px">Use the account your code already lives under.</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="oauth">
+            <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.57c2.08-1.92 3.27-4.74 3.27-8.09Z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.76c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1a11 11 0 0 0-9.82 6.05l3.66 2.84C6.71 7.29 9.14 5.38 12 5.38Z"/></svg>
+            Continue with Google
+            <span class="go">↵</span>
+          </button>
+          <button class="oauth">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 1a11 11 0 0 0-3.48 21.44c.55.1.75-.24.75-.53v-1.9c-3.06.67-3.71-1.3-3.71-1.3-.5-1.28-1.22-1.62-1.22-1.62-1-.68.08-.67.08-.67 1.1.08 1.68 1.14 1.68 1.14.98 1.69 2.58 1.2 3.21.92.1-.72.38-1.2.7-1.48-2.44-.28-5.01-1.23-5.01-5.47 0-1.21.43-2.2 1.14-2.97-.11-.28-.5-1.4.11-2.93 0 0 .93-.3 3.05 1.14a10.5 10.5 0 0 1 5.56 0c2.12-1.44 3.05-1.14 3.05-1.14.61 1.53.22 2.65.11 2.93.71.77 1.14 1.76 1.14 2.97 0 4.25-2.58 5.19-5.03 5.46.4.34.75 1 .75 2.02v3c0 .29.2.64.76.53A11 11 0 0 0 12 1Z"/></svg>
+            Continue with GitHub
+            <span class="go">↵</span>
+          </button>
+        </div>
+        <div class="or">then</div>
+        <div class="card flat" style="padding:14px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span class="pill p-acc"><span class="dot"></span>Workspace</span>
+            <p class="fine" style="margin:0">Your first sign-in creates a workspace. Point it at a Jira project, an Xray project and a Bitbucket repo — the agents pick up from there.</p>
+          </div>
+        </div>
+        <p class="fine">Sessions are httpOnly cookies signed by Auth.js. Gantry never stores a password, and never asks for one.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= APP SHELL ================= -->
+<div class="frame" id="app-frame" style="display:none">
+  <nav class="rail">
+    <div class="brand">
+      <div class="mark">G</div>
+      <div><b>Gantry</b><span>Payments Web</span></div>
+    </div>
+    <span class="rail-label">Workspace</span>
+    <button class="navbtn" data-go="plan"><svg class="ic" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg>Sprint planner<span class="tick">S-24</span></button>
+    <button class="navbtn" data-go="agents"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg>Agents<span class="tick">5</span></button>
+    <span class="rail-label">Delivery</span>
+    <button class="navbtn" data-go="results"><svg class="ic" viewBox="0 0 24 24"><path d="M3 18l5-6 4 4 4-7 5 6M3 21h18"/></svg>Results<span class="tick">3</span></button>
+    <button class="navbtn" data-go="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.18V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 7.26 19.4l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.09 14H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 8.26l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 10 4.6V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.18l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 21 10.6H21a2 2 0 1 1 0 4h-.09Z"/></svg>Settings</button>
+    <div class="rail-foot">
+      <div class="who">
+        <div class="av">CK</div>
+        <div><div class="n">Chandan K.</div><div class="e">Workspace owner</div></div>
+      </div>
+    </div>
+  </nav>
+  <div class="main">
+    <div class="bar">
+      <div>
+        <div class="crumb">payments-web / <b id="crumb">sprint-24</b></div>
+        <h2 id="pagetitle">Sprint planner</h2>
+      </div>
+      <div class="sp"></div>
+      <span class="pill p-live" id="livepill"><span class="dot"></span>1 run live</span>
+      <button class="btn">Import from Jira</button>
+      <button class="btn pri" data-go="run">Run pipeline →</button>
+    </div>
+    <div class="pane">
+
+    <!-- ---------- PLANNER ---------- -->
+    <section class="screen on" id="s-plan">
+      <div class="stat" style="margin-bottom:16px">
+        <div><div class="v">34</div><div class="k">Points committed</div><div class="dl" style="color:var(--muted)">of 36 capacity</div></div>
+        <div><div class="v">8</div><div class="k">Stories from Jira</div><div class="dl" style="color:var(--muted)">project PAY</div></div>
+        <div><div class="v" style="color:var(--heal)">2</div><div class="k">Missing acceptance criteria</div><div class="dl" style="color:var(--heal)">clarify will ask</div></div>
+        <div><div class="v">5</div><div class="k">Pipelines finished</div><div class="dl" style="color:var(--pass)">▲ 41 Xray cases</div></div>
+      </div>
+      <div class="split">
+        <div class="card">
+          <div class="card-h">
+            <h3>Sprint 24 backlog</h3>
+            <span class="pill p-idle">Sep 1 – Sep 12</span>
+            <div class="sp"></div>
+            <span class="sysbadge"><span class="dot" style="background:var(--accent)"></span>PAY</span>
+            <button class="btn sm">Import from Jira</button>
+            <button class="btn sm pri" data-go="run">Run all 8 →</button>
+          </div>
+          <div id="storylist"></div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-h">
+              <h3>sprint-planner</h3>
+              <span class="pill p-pass"><span class="dot"></span>Proposal applied</span>
+            </div>
+            <div class="card-b grid" style="gap:13px">
+              <div class="agent-out">
+                Committing <strong>34 points across 8 stories</strong>, within your rolling velocity of 31–36. I moved <strong>PAY-812</strong> ahead of <strong>PAY-806</strong> — 806's checkout assertions depend on 812's idempotency key. <strong>PAY-830</strong> and <strong>PAY-858</strong> arrived with no acceptance criteria; I drafted them and flagged them rather than guessing.
+              </div>
+              <div class="cap">
+                <div class="cap-row"><span>Team capacity</span><b>36 pts</b></div>
+                <div class="bar-track"><div class="bar-fill" style="width:94%"></div></div>
+                <div class="cap-row"><span class="sub">Committed 34 · 2 pts headroom</span><b class="sub">94%</b></div>
+              </div>
+              <hr class="hr">
+              <div class="grid" style="gap:8px">
+                <span class="lbl">Risks it flagged</span>
+                <div style="display:flex;gap:7px;flex-wrap:wrap">
+                  <span class="pill p-heal"><span class="dot"></span>2 stories missing AC</span>
+                  <span class="pill p-heal"><span class="dot"></span>1 cross-team dependency</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Hand off to</h3></div>
+            <div class="card-b grid" style="gap:9px">
+              <div class="io"><span class="tag">Jira story</span><span class="ar">→</span><span class="tag">6 sub-agents</span><span class="ar">→</span><span class="tag">Xray + Bitbucket</span></div>
+              <p class="sub">Each committed story walks the same chain. Nothing reaches Xray or Bitbucket until you approve it on the Results screen.</p>
+              <button class="btn" style="justify-content:center" data-go="run">Open a pipeline run</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- AGENTS ---------- -->
+    <section class="screen" id="s-agents">
+      <div style="margin-bottom:16px;max-width:62ch">
+        <h3 style="font-size:17px">Top-level agents</h3>
+        <p class="sub" style="margin-top:5px">Each has one job, a typed input, and a typed output, produced through a forced tool call so a malformed result never reaches your database. <span class="mono">qe-pipeline</span> is itself an orchestrator: it runs the six sub-agents below.</p>
+      </div>
+      <div class="agrid" id="agentgrid"></div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-h"><h3>Inside qe-pipeline</h3><span class="pill p-idle">read left to right</span></div>
+        <div class="card-b blueprint">
+          <div class="flow" id="chainflow"></div>
+          <ul class="sublist" id="sublist"></ul>
+          <p class="sub" style="border-top:1px solid var(--line-soft);padding-top:13px;margin-top:13px">
+            When the verifier objects, spec-author revises and the verifier re-checks — up to twice — so the pipeline converges instead of stopping at the first objection. A blocking question from clarify stops the chain outright rather than letting a guess flow downstream.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- PIPELINE RUN ---------- -->
+    <section class="screen" id="s-run">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-h">
+          <h3>PAY-812 · Idempotency keys on checkout submit</h3>
+          <a class="jira" href="#">PAY-812 in Jira ↗</a>
+          <span class="pill p-live" id="runstate"><span class="dot"></span>Running</span>
+          <div class="sp"></div>
+          <span class="mono sub" id="runclock">00:00</span>
+          <button class="btn sm" id="btn-restart">Replay</button>
+        </div>
+        <div class="card-b blueprint">
+          <div class="flow" id="stageflow"></div>
+          <ul class="sublist" id="stagesummaries" style="display:none"></ul>
+        </div>
+      </div>
+
+      <div class="card" id="proposals" style="margin-bottom:16px;display:none">
+        <div class="card-h">
+          <h3>Waiting for your approval</h3>
+          <span class="pill p-heal"><span class="dot"></span>nothing is written until you approve</span>
+        </div>
+        <div class="card-b grid" style="gap:10px" id="proplist"></div>
+      </div>
+
+      <div class="split">
+        <div class="term">
+          <div class="term-h">
+            <span class="pill p-live" id="streamstate" style="background:rgba(92,200,234,.12);border-color:rgba(92,200,234,.3);color:#5FC8EA"><span class="dot"></span>live</span>
+            <span class="lbl">agent stream</span>
+            <div class="sp"></div>
+            <span class="mono" style="font-size:11px;color:#7E90AC" id="linecount">0 lines</span>
+          </div>
+          <div class="term-b" id="stream"></div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-h"><h3>Xray test cases</h3><span class="pill p-acc" id="tccount">0</span></div>
+            <div class="card-b grid" style="gap:8px" id="testcases">
+              <p class="sub">spec-author has not produced any yet.</p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Files</h3><span class="pill p-acc" id="filecount">0</span></div>
+            <div class="card-b grid" style="gap:8px" id="files">
+              <p class="sub">Nothing written yet.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- RESULTS ---------- -->
+    <section class="screen" id="s-results">
+      <div class="stat" style="margin-bottom:16px">
+        <div><div class="v">14</div><div class="k">Pipeline runs</div><div class="dl" style="color:var(--muted)">this workspace</div></div>
+        <div><div class="v" style="color:var(--pass)">11</div><div class="k">Reviewer approved</div><div class="dl" style="color:var(--pass)">78.6%</div></div>
+        <div><div class="v" style="color:var(--heal)">3</div><div class="k">Blocked, needs answers</div><div class="dl" style="color:var(--heal)">clarify is waiting</div></div>
+        <div><div class="v">32/41</div><div class="k">Test cases in Xray</div><div class="dl" style="color:var(--muted)">published / generated</div></div>
+      </div>
+      <div class="split">
+        <div class="card">
+          <div class="card-h">
+            <h3>Awaiting approval</h3>
+            <span class="pill p-heal"><span class="dot"></span>3 proposals</span>
+          </div>
+          <div class="card-b grid" style="gap:10px">
+            <div class="prop">
+              <div>
+                <div class="t">Create Xray test cases</div>
+                <div class="d">PAY-812 · 4 test cases → PAY</div>
+              </div>
+              <div class="sp"></div>
+              <span class="sysbadge">Xray</span>
+              <button class="btn sm">Review</button>
+              <button class="btn sm pri">Approve &amp; publish</button>
+            </div>
+            <div class="prop">
+              <div>
+                <div class="t">Commit branch &amp; open PR in Bitbucket</div>
+                <div class="d">acme/payments-web · qe/PAY-812-specs → main</div>
+              </div>
+              <div class="sp"></div>
+              <span class="sysbadge">Bitbucket</span>
+              <button class="btn sm">Review</button>
+              <button class="btn sm pri">Approve &amp; publish</button>
+            </div>
+            <div class="prop">
+              <div>
+                <div class="t">Post questions to Jira</div>
+                <div class="d">PAY-830 · 2 blocking questions from clarify</div>
+              </div>
+              <div class="sp"></div>
+              <span class="sysbadge">Jira</span>
+              <button class="btn sm">Review</button>
+              <button class="btn sm pri">Approve &amp; publish</button>
+            </div>
+            <p class="fine">Approving is the only action in Gantry that writes to Jira, Xray or Bitbucket. Everything above this line stays inside Gantry until you click.</p>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-h"><h3>Recent runs</h3></div>
+            <div class="card-b grid" style="gap:8px" id="recentruns"></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><h3>Reviewer pass rate</h3></div>
+            <div class="card-b grid" style="gap:9px">
+              <div class="cap-row"><span class="sub">Approved</span><b class="mono" style="color:var(--pass)">11 / 14</b></div>
+              <div class="bar-track"><div class="bar-fill" style="width:78.6%;background:var(--pass)"></div></div>
+              <p class="sub">A blocked run is not a failure — it means clarify found something a wrong guess would have gotten wrong, and stopped to ask.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- SETTINGS ---------- -->
+    <section class="screen" id="s-settings">
+      <div class="split">
+        <div class="card">
+          <div class="card-h"><h3>Atlassian wiring</h3><span class="pill p-pass"><span class="dot"></span>connected</span></div>
+          <div class="card-b grid" style="gap:13px">
+            <div class="grid" style="grid-template-columns:1fr 1fr;gap:13px">
+              <div class="grid" style="gap:6px"><span class="lbl">Jira project key</span><div class="code" style="padding:7px 10px">PAY</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Xray project key</span><div class="code" style="padding:7px 10px">PAY</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Bitbucket workspace</span><div class="code" style="padding:7px 10px">acme</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Bitbucket repository</span><div class="code" style="padding:7px 10px">payments-web</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Default branch</span><div class="code" style="padding:7px 10px">main</div></div>
+              <div class="grid" style="gap:6px"><span class="lbl">Test framework</span><div class="code" style="padding:7px 10px">playwright</div></div>
+            </div>
+            <p class="sub">These are coordinates, not credentials. API tokens live in environment variables, so nothing secret is stored in the database.</p>
+            <button class="btn pri" style="justify-content:center">Save</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Credentials</h3><span class="pill p-pass"><span class="dot"></span>agents live</span></div>
+          <div class="card-b" id="creds"></div>
+        </div>
+      </div>
+    </section>
+
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const el = (t, c, h) => { const n = document.createElement(t); if (c) n.className = c; if (h != null) n.innerHTML = h; return n; };
+
+  /* ---------- data ---------- */
+  const stories = [
+    { k: 'PAY-812', t: 'Idempotency keys on checkout submit', p: 5, on: 1, tags: [['p-pass', '3 acceptance criteria'], ['p-acc', 'specced']] },
+    { k: 'PAY-806', t: 'Retry a failed card authorisation once', p: 3, on: 1, tags: [['p-pass', '3 acceptance criteria'], ['p-idle', 'depends on 812']] },
+    { k: 'PAY-830', t: 'Partial refund for split-tender orders', p: 8, on: 1, tags: [['p-heal', 'no acceptance criteria'], ['p-heal', 'clarify is waiting']] },
+    { k: 'PAY-799', t: 'Wallet balance reconciliation job', p: 5, on: 1, tags: [['p-pass', '2 acceptance criteria']] },
+    { k: 'PAY-841', t: 'Apple Pay sheet on mobile web', p: 5, on: 1, tags: [['p-pass', '2 acceptance criteria']] },
+    { k: 'PAY-845', t: 'Decline reason codes surfaced to support', p: 3, on: 1, tags: [['p-pass', '2 acceptance criteria'], ['p-acc', 'specced']] },
+    { k: 'PAY-858', t: 'Dispute evidence upload limits', p: 2, on: 1, tags: [['p-heal', 'AC drafted by agent']] },
+    { k: 'PAY-851', t: 'Payout schedule editor', p: 5, on: 0, tags: [['p-idle', 'not committed']] }
+  ];
+
+  const agents = [
+    { id: 'qe-pipeline', role: 'Orchestrator · six sub-agents', d: 'Walks one Jira story through story-analyzer, clarify, asset-resolver, spec-author, verifier and reviewer. Revises its own work when the verifier objects, and stops rather than guessing when the story is genuinely ambiguous.', io: ['Jira story', 'Xray tests + PR'], st: ['p-live', '1 running'], runs: '14 runs' },
+    { id: 'sprint-planner', role: 'Planning', d: 'Reads the backlog, sizes what has no estimate, orders by dependency, and commits only what velocity supports. Flags what it refuses to guess at.', io: ['backlog', 'sprint plan'], st: ['p-pass', 'proposal applied'], runs: '9 runs' },
+    { id: 'qe-insights', role: 'Analysis', d: 'Watches run history for flake signatures, slow suites and coverage gaps against the sprint, then tells the planner what to pull in next.', io: ['run history', 'signals'], st: ['p-pass', 'healthy'], runs: '31 runs' },
+    { id: 'qe-auto-heal', role: 'Repair · one spec', d: 'Reads a failure, the diff behind it, and the spec. Proposes the smallest patch — or refuses and says the application is what needs fixing.', io: ['failure', 'verified patch'], st: ['p-idle', 'awaiting job runs'], runs: '—' },
+    { id: 'batch-heal', role: 'Repair · fleet', d: 'When one change breaks many specs, groups them by root cause, patches each group once, and opens a single PR with only the ones that went green.', io: ['n failures', 'one PR'], st: ['p-idle', 'awaiting job runs'], runs: '—' }
+  ];
+
+  const agentIcon = {
+    'qe-pipeline': '<path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/>',
+    'sprint-planner': '<path d="M4 6h16M4 12h10M4 18h13"/>',
+    'qe-insights': '<path d="M3 18l5-6 4 4 4-7 5 6"/><path d="M3 21h18"/>',
+    'qe-auto-heal': '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>',
+    'batch-heal': '<path d="M20 11a8 8 0 1 0-2.7 6"/><path d="M20 4v5h-5"/><path d="M8 12h8M12 8v8"/>'
+  };
+
+  const subAgents = [
+    { id: 'story-analyzer', role: 'Reads the Jira story', d: 'Turns the story and its acceptance criteria into a list of testable behaviours, and separates what is genuinely unclear from what is merely unstated.' },
+    { id: 'clarify', role: 'Asks before guessing', d: 'Writes one answerable question per ambiguity, each with a suggested default. Stops the pipeline when a wrong guess would test the wrong thing.' },
+    { id: 'asset-resolver', role: 'Reuses what the repo has', d: 'Reads the Bitbucket repository to find fixtures, page objects and helpers that already exist, so the suite is extended rather than duplicated.' },
+    { id: 'spec-author', role: 'Writes specs and Xray cases', d: 'Writes complete runnable files against the repo’s own conventions, and Xray test cases with real steps and expected results.' },
+    { id: 'verifier', role: 'Checks the work', d: 'Maps every acceptance criterion to the test covering it, and hunts placeholders, broken imports and assertions that cannot fail.' },
+    { id: 'reviewer', role: 'The gate', d: 'Decides whether the suite is fit to propose to Xray and Bitbucket, and writes the pull request. Sends work back rather than waving it through.' }
+  ];
+
+  const recentRuns = [
+    ['PAY-812', '6/6', 'p-heal', 'needs review'],
+    ['PAY-845', '6/6', 'p-heal', 'needs review'],
+    ['PAY-830', '2/6', 'p-heal', 'blocked'],
+    ['PAY-799', '6/6', 'p-pass', 'published'],
+    ['PAY-841', '6/6', 'p-pass', 'published'],
+    ['PAY-858', '2/6', 'p-heal', 'blocked']
+  ];
+
+  const creds = [
+    ['ANTHROPIC_API_KEY', 'set', 'p-pass'],
+    ['JIRA_BASE_URL / EMAIL / API_TOKEN', 'set', 'p-pass'],
+    ['XRAY_CLIENT_ID / SECRET', 'set', 'p-pass'],
+    ['BITBUCKET_USERNAME / APP_PASSWORD', 'set', 'p-pass'],
+    ['Google OAuth', 'configured', 'p-pass'],
+    ['GitHub OAuth', 'not configured', 'p-heal'],
+    ['Database', 'postgres', 'p-idle']
+  ];
+
+  /* ---------- render: stories ---------- */
+  const sl = $('#storylist');
+  stories.forEach(s => {
+    const row = el('div', 'story');
+    row.innerHTML =
+      `<span class="ck" data-on="${s.on}" role="checkbox" aria-checked="${s.on ? 'true' : 'false'}" tabindex="0"></span>
+       <div><div class="key"><a class="jira" href="#">${s.k} ↗</a></div><div class="ttl">${s.t}</div>
+       <div class="meta">${s.tags.map(t => `<span class="pill ${t[0]}"><span class="dot"></span>${t[1]}</span>`).join('')}</div></div>
+       <div class="pts">${s.p}<span class="sub" style="font-size:10px"> pt</span></div>`;
+    const ck = $('.ck', row);
+    const flip = () => { const v = ck.dataset.on === '1' ? '0' : '1'; ck.dataset.on = v; ck.setAttribute('aria-checked', v === '1'); };
+    ck.addEventListener('click', flip);
+    ck.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); } });
+    sl.append(row);
+  });
+
+  /* ---------- render: agents ---------- */
+  const ag = $('#agentgrid');
+  agents.forEach(a => {
+    const c = el('div', 'agent');
+    c.innerHTML =
+      `<div class="agent-top">
+         <div class="agent-mk"><svg viewBox="0 0 24 24">${agentIcon[a.id]}</svg></div>
+         <div><h4>${a.id}</h4><div class="role">${a.role}</div></div>
+         <div style="margin-left:auto"><span class="pill ${a.st[0]}"><span class="dot"></span>${a.st[1]}</span></div>
+       </div>
+       <p class="desc">${a.d}</p>
+       <div class="io"><span class="tag">${a.io[0]}</span><span class="ar">→</span><span class="tag">${a.io[1]}</span></div>
+       <div class="agent-foot"><button class="btn sm">Configure</button><button class="btn sm pri">Invoke</button><span class="runs">${a.runs}</span></div>`;
+    ag.append(c);
+  });
+
+  /* ---------- render: sub-agent chain ---------- */
+  function chainNode(a, i, cls) {
+    const wrap = el('div', 'flex');
+    wrap.style.display = 'flex';
+    wrap.style.alignItems = 'center';
+    if (i) {
+      const lk = el('div', 'link');
+      lk.innerHTML = '<svg viewBox="0 0 26 12"><path d="M0 6h20m-4-4 4 4-4 4"/></svg>';
+      wrap.append(lk);
+    }
+    const n = el('div', cls);
+    n.dataset.s = 'pending';
+    n.innerHTML = `<span class="num">${a.order || i + 1}</span><span class="n">${a.id}</span><span class="r">${a.role}</span>`;
+    wrap.append(n);
+    return wrap;
+  }
+  const chainflow = $('#chainflow');
+  subAgents.forEach((a, i) => {
+    const w = chainNode(a, i, 'stage');
+    $('.stage', w).dataset.s = 'passed';
+    chainflow.append(w);
+  });
+  const sub = $('#sublist');
+  subAgents.forEach((a, i) => {
+    const li = el('li');
+    li.innerHTML = `<span class="o">${i + 1}</span><div><h5>${a.id}</h5><span class="role">${a.role}</span><p>${a.d}</p></div>`;
+    sub.append(li);
+  });
+
+  /* ---------- render: results + settings ---------- */
+  const rr = $('#recentruns');
+  recentRuns.forEach(([k, s, tone, label]) => {
+    const d = el('div', 'asset');
+    d.innerHTML = `<span class="p">${k}</span><span class="z" style="margin-left:0">${s}</span><span class="pill ${tone}" style="margin-left:auto"><span class="dot"></span>${label}</span>`;
+    rr.append(d);
+  });
+  const cr = $('#creds');
+  creds.forEach(([k, v, tone]) => {
+    const d = el('div');
+    d.style.cssText = 'display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line-soft)';
+    d.innerHTML = `<span class="mono" style="font-size:12px;color:var(--ink-2)">${k}</span><span class="pill ${tone}" style="margin-left:auto"><span class="dot"></span>${v}</span>`;
+    cr.append(d);
+  });
+
+  /* ---------- pipeline run ---------- */
+  const stageflow = $('#stageflow');
+  subAgents.forEach((a, i) => stageflow.append(chainNode(a, i, 'stage')));
+  const stageEls = $$('#stageflow .stage');
+  const linkEls = $$('#stageflow .link');
+
+  // The script deliberately shows the revision loop: the verifier rejects the first
+  // attempt, spec-author fixes it, and only then does the reviewer approve.
+  const script = [
+    ['story-analyzer', 0, 'reading PAY-812 — 3 acceptance criteria', ''],
+    ['story-analyzer', 0, '4 testable behaviours; no blocking ambiguity', 'ok'],
+    ['clarify', 1, 'nothing needs clarifying — every criterion has one reading', 'ok'],
+    ['asset-resolver', 2, 'read 214 paths from acme/payments-web', 'dim'],
+    ['asset-resolver', 2, 'reuse e2e/fixtures/testUsers.ts — already covers these personas', 'ok'],
+    ['asset-resolver', 2, 'reuse e2e/pages/CheckoutPage.ts', 'ok'],
+    ['spec-author', 3, 'wrote e2e/tests/pay-812.spec.ts (96 lines)', 'ok'],
+    ['spec-author', 3, 'wrote e2e/fixtures/pay-812.ts (18 lines)', 'ok'],
+    ['spec-author', 3, '3 Xray test cases with steps and expected results', 'ok'],
+    ['verifier', 4, '2/3 criteria covered — "key expires after 24 hours" has no test', 'er'],
+    ['verifier', 4, 'revision 1: sending back to spec-author', 'wn'],
+    ['spec-author', 3, 'rewrote e2e/tests/pay-812.spec.ts — added the expiry case', 'ok'],
+    ['spec-author', 3, '4 Xray test cases', 'ok'],
+    ['verifier', 4, '3/3 criteria covered, no defects', 'ok'],
+    ['reviewer', 5, 'approved — every criterion maps to a test, files are runnable', 'ok'],
+    ['reviewer', 5, 'no assertion was weakened to make anything pass', 'dim'],
+    ['pipeline', 5, 'publications proposed — approve them to write to Xray and Bitbucket', 'ok']
+  ];
+
+  const testCases = [
+    ['Idempotency keys — same key twice creates one order', 'Submitting the same idempotency key twice creates exactly one order.', [
+      ['Navigate to the checkout screen', 'path: /checkout', 'The form loads with Pay enabled.'],
+      ['Submit with idempotency key K1', '{ key: "K1", amount: 1250 }', 'The order is created and a confirmation is shown.'],
+      ['Submit the identical request again', 'same payload', 'No second order is created.']
+    ]],
+    ['Idempotency keys — repeat returns the original order', 'The second response returns the original order, not an error.', [
+      ['Submit with key K1 twice', '{ key: "K1" }', 'Both responses carry the same order id.'],
+      ['Inspect the second response', '—', 'Status is 200, not 409.']
+    ]],
+    ['Idempotency keys — key expires after 24 hours', 'A key expires after 24 hours and is then reusable.', [
+      ['Submit with key K1', '{ key: "K1" }', 'Order created.'],
+      ['Advance the clock 24h and resubmit', 'same key', 'A new order is created.']
+    ]],
+    ['Checkout — double click creates one order', 'Submitting the same idempotency key twice creates exactly one order.', [
+      ['Double-click Pay', '—', 'Exactly one order exists afterwards.']
+    ]]
+  ];
+
+  const files = [
+    ['e2e/tests/pay-812.spec.ts', 'spec', '96 lines'],
+    ['e2e/fixtures/pay-812.ts', 'fixture', '18 lines'],
+    ['e2e/fixtures/testUsers.ts', 'reused', '—'],
+    ['e2e/pages/CheckoutPage.ts', 'reused', '—']
+  ];
+
+  const proposals = [
+    ['Create Xray test cases', 'PAY-812 · 4 test cases → PAY', 'Xray'],
+    ['Commit branch &amp; open PR in Bitbucket', 'acme/payments-web · qe/PAY-812-specs → main', 'Bitbucket']
+  ];
+
+  const stream = $('#stream');
+  let runTimer = null, clockTimer = null;
+
+  function resetRun() {
+    stream.innerHTML = '';
+    stageEls.forEach(n => { n.dataset.s = 'pending'; });
+    linkEls.forEach(l => l.dataset.on = '0');
+    $('#testcases').innerHTML = '<p class="sub">spec-author has not produced any yet.</p>';
+    $('#files').innerHTML = '<p class="sub">Nothing written yet.</p>';
+    $('#tccount').textContent = '0';
+    $('#filecount').textContent = '0';
+    $('#proposals').style.display = 'none';
+    $('#proplist').innerHTML = '';
+    $('#stagesummaries').style.display = 'none';
+    $('#runstate').className = 'pill p-live';
+    $('#runstate').innerHTML = '<span class="dot"></span>Running';
+    $('#streamstate').innerHTML = '<span class="dot"></span>live';
+    $('#runclock').textContent = '00:00';
+    $('#linecount').textContent = '0 lines';
+  }
+
+  function startRun() {
+    if (runTimer) { clearInterval(runTimer); clearInterval(clockTimer); runTimer = null; }
+    resetRun();
+
+    let i = 0, t = 0;
+    clockTimer = setInterval(() => { t++; $('#runclock').textContent = '00:' + String(t).padStart(2, '0'); }, 1000);
+
+    runTimer = setInterval(() => {
+      if (i >= script.length) {
+        clearInterval(runTimer); clearInterval(clockTimer); runTimer = null;
+        stageEls.forEach(n => n.dataset.s = 'passed');
+        linkEls.forEach(l => l.dataset.on = '1');
+        $('#runstate').className = 'pill p-heal';
+        $('#runstate').innerHTML = '<span class="dot"></span>Needs review';
+        $('#streamstate').innerHTML = '<span class="dot"></span>finished';
+        $('#streamstate').style.cssText = 'background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.15);color:#9FB0C9';
+        const cur = $('.cursor', stream); if (cur) cur.remove();
+        $('#proposals').style.display = '';
+        proposals.forEach(([t2, d, sys]) => {
+          const p = el('div', 'prop');
+          p.innerHTML = `<div><div class="t">${t2}</div><div class="d">${d}</div></div><div class="sp"></div><span class="sysbadge">${sys}</span><span class="pill p-heal"><span class="dot"></span>proposed</span><button class="btn sm pri">Approve &amp; publish</button>`;
+          $('#proplist').append(p);
+        });
+        return;
+      }
+
+      const [who, stageIdx, msg, kind] = script[i];
+      const line = el('div', 'ln');
+      line.innerHTML = `<span class="ts">00:${String(2 + i * 2).padStart(2, '0')}</span><span class="ag">${who}</span><span class="${kind}">${msg}</span>`;
+      const cur = $('.cursor', stream); if (cur) cur.remove();
+      stream.append(line);
+      stream.append(el('span', 'cursor'));
+      stream.scrollTop = stream.scrollHeight;
+      $('#linecount').textContent = `${i + 1} lines`;
+
+      // advance stages; a revision sends spec-author back to running
+      stageEls.forEach((n, k) => {
+        if (k < stageIdx) n.dataset.s = 'passed';
+        else if (k === stageIdx) n.dataset.s = kind === 'er' || kind === 'wn' ? 'blocked' : 'run';
+        else n.dataset.s = 'pending';
+      });
+      linkEls.forEach((l, k) => l.dataset.on = k < stageIdx ? '1' : '0');
+
+      // assets appear as they are produced
+      if (i === 8 || i === 12) {
+        const box = $('#testcases');
+        box.innerHTML = '';
+        const upTo = i === 8 ? 3 : 4;
+        testCases.slice(0, upTo).forEach(([s2, c, steps]) => {
+          const d = el('details', 'tc');
+          d.innerHTML = `<summary><span style="min-width:0;flex:1"><span class="s">${s2}</span><span class="c">covers: ${c}</span></span><span class="pill p-idle">Manual</span></summary>
+            <ol>${steps.map(([a, dt, e2]) => `<li><b>${a}</b>${dt !== '—' ? `<span class="dat">data: ${dt}</span>` : ''}<span class="exp">→ ${e2}</span></li>`).join('')}</ol>`;
+          box.append(d);
+        });
+        $('#tccount').textContent = String(upTo);
+      }
+      if (i === 7) {
+        const box = $('#files');
+        box.innerHTML = '';
+        files.forEach(([p, kind2, z]) => {
+          const a = el('div', 'asset');
+          a.innerHTML = `<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></svg><span class="p">${p}</span><span class="z">${kind2 === 'reused' ? 'reused' : z}</span>`;
+          box.append(a);
+        });
+        $('#filecount').textContent = '2 new';
+      }
+      i++;
+    }, 850);
+  }
+
+  /* ---------- navigation ---------- */
+  const titles = {
+    plan: ['Sprint planner', 'sprint-24'],
+    agents: ['Agents', 'agents'],
+    run: ['qe-pipeline · PAY-812', 'runs / PAY-812'],
+    results: ['Results', 'results'],
+    settings: ['Settings', 'settings']
+  };
+  const frame = $('#app-frame'), signin = $('#s-signin');
+
+  function go(id) {
+    $$('.chip').forEach(c => c.setAttribute('aria-current', String(c.dataset.go === id)));
+    if (id === 'signin') { signin.classList.add('on'); frame.style.display = 'none'; return; }
+    signin.classList.remove('on');
+    frame.style.display = 'grid';
+    $$('.pane .screen').forEach(s => s.classList.toggle('on', s.id === 's-' + id));
+    $$('.navbtn').forEach(b => b.setAttribute('aria-current', String(b.dataset.go === id)));
+    $('#pagetitle').textContent = titles[id][0];
+    $('#crumb').textContent = titles[id][1];
+    if (id === 'run') startRun();
+  }
+  $$('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+  $('#btn-restart').addEventListener('click', startRun);
+
+  go('signin');
+})();
+</script>
