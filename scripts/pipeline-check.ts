@@ -1,5 +1,5 @@
 /**
- * Exercises the qe-pipeline's six sub-agents through their real contracts. With no
+ * Exercises the qe-pipeline's seven sub-agents through their real contracts. With no
  * ANTHROPIC_API_KEY this checks the simulators and the schemas; with a key set it makes real
  * model calls, so the same script doubles as a post-deploy smoke test.
  *
@@ -40,7 +40,8 @@ function run<T>(id: keyof typeof SUB_AGENTS, input: unknown): T {
 
 console.log(`mode: ${agentsAreLive() ? "LIVE" : "SIMULATED"}\n`);
 
-check("six sub-agents, ordered 1..6", SUB_AGENT_LIST.map((a) => a.order).join(",") === "1,2,3,4,5,6");
+check("seven sub-agents, ordered 1..7", SUB_AGENT_LIST.map((a) => a.order).join(",") === "1,2,3,4,5,6,7");
+check("test-strategist runs third", SUB_AGENT_LIST[2]?.id === "test-strategist");
 
 // --- story-analyzer -------------------------------------------------------
 const analysis = run<{ testable: boolean; behaviours: unknown[]; ambiguities: { blocking: boolean }[] }>(
@@ -65,6 +66,41 @@ const clar = run<{ blocked: boolean; questions: { suggestedAnswer: string }[]; j
 check("clarify blocks on a blocking ambiguity", clar.blocked);
 check("clarify offers a default for every question", clar.questions.every((q) => q.suggestedAnswer.length > 0));
 check("clarify drafts a Jira comment", clar.jiraComment.length > 20);
+
+// --- test-strategist ------------------------------------------------------
+type Plan = {
+  approach: string;
+  levels: { share: number }[];
+  criteria: { criterion: string; techniques: string[]; priority: string; scenarios: { kind: string; coveredBy: string }[] }[];
+  scopeNotes: string[];
+};
+const RICH_STORY = {
+  ...GOOD_STORY,
+  acceptanceCriteria: [
+    ...GOOD_STORY.acceptanceCriteria,
+    "Given a key older than 24 hours, when it is reused, then a new order is created.",
+  ],
+  testCriteria: "Precondition: a signed-in shopper with a saved card.",
+  comments: ["Update: the 24 hour window is now out of scope for this sprint."],
+  existingTests: [{ key: "PAY-900", summary: "[Positive] Submitting the same idempotency key twice creates exactly one order", kind: "positive" }],
+};
+const strategy = run<Plan>("test-strategist", {
+  story: RICH_STORY,
+  behaviours: RICH_STORY.acceptanceCriteria.map((c, n) => ({ name: `B${n + 1}`, criterion: c, kind: "happy-path", risk: n === 0 ? "high" : "medium" })),
+  framework: "playwright",
+});
+check("test-strategist plans every criterion", strategy.criteria.length === RICH_STORY.acceptanceCriteria.length);
+check("test-strategist picks at least one technique per criterion", strategy.criteria.every((c) => c.techniques.length > 0));
+check("test-strategist covers positive and negative paths",
+  strategy.criteria.some((c) => c.scenarios.some((s) => s.kind === "positive")) &&
+    strategy.criteria.some((c) => c.scenarios.some((s) => s.kind === "negative")));
+check("test-strategist picks boundary values for a time limit",
+  strategy.criteria[2]?.techniques.includes("boundary-value") ?? false, strategy.criteria[2]?.techniques.join(","));
+check("test-strategist reuses an existing linked test", strategy.criteria.some((c) => c.scenarios.some((s) => s.coveredBy === "PAY-900")));
+check("test-strategist flags a scope change from comments", strategy.scopeNotes.length > 0);
+check("test-strategist level shares add up to 100", Math.round(strategy.levels.reduce((a, l) => a + l.share, 0)) === 100,
+  strategy.levels.map((l) => l.share).join("+"));
+check("test-strategist gives the highest-risk criterion P1", strategy.criteria[0]?.priority === "P1");
 
 // --- asset-resolver -------------------------------------------------------
 const resolved = run<{ reuse: { path: string }[]; create: { path: string }[]; conventions: { specDir: string } }>(

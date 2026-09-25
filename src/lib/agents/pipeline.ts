@@ -15,6 +15,17 @@ type Resolver = z.infer<typeof P.AssetResolverOut>;
 type Author = z.infer<typeof P.SpecAuthorOut>;
 type Verify = z.infer<typeof P.VerifierOut>;
 type Review = z.infer<typeof P.ReviewerOut>;
+type Strategy = z.infer<typeof P.TestStrategistOut>;
+
+/** The Jira context stored on a story at import (see Story.contextJson). */
+interface StoredContext {
+  priority?: string;
+  testCriteria?: string;
+  comments?: { author: string; created: string; text: string }[];
+  parent?: { key: string; summary: string } | null;
+  components?: string[];
+  linkedTests?: { key: string; summary: string; kind: string }[];
+}
 
 /** Runs one sub-agent. Same structured-output contract as the top-level agents. */
 async function runSubAgent<T>(
@@ -89,7 +100,7 @@ async function endStage(
 }
 
 /**
- * The qe-pipeline: one Jira story walked through six sub-agents.
+ * The qe-pipeline: one Jira story walked through seven sub-agents.
  *
  * story-analyzer → clarify → asset-resolver → spec-author → verifier → reviewer
  *
@@ -115,6 +126,7 @@ export async function runPipeline(opts: {
   });
   const ws = story.sprint.workspace;
 
+  const jira = parseJson<StoredContext>(story.contextJson, {});
   const storyCtx = {
     key: story.key,
     summary: story.title,
@@ -122,6 +134,12 @@ export async function runPipeline(opts: {
     acceptanceCriteria: parseJson<string[]>(story.acceptanceCriteria, []),
     issueType: story.issueType || "Story",
     labels: parseJson<string[]>(story.tagsJson, []),
+    priority: jira.priority ?? "",
+    testCriteria: jira.testCriteria ?? "",
+    comments: (jira.comments ?? []).map((c) => `${c.author}${c.created ? ` (${c.created.slice(0, 10)})` : ""}: ${c.text}`),
+    parent: jira.parent ? `${jira.parent.key}: ${jira.parent.summary}` : "",
+    components: jira.components ?? [],
+    existingTests: (jira.linkedTests ?? []).map((t) => ({ key: t.key, summary: t.summary, kind: t.kind })),
   };
 
   // Seed every stage so the UI can show the whole chain from the first paint.
@@ -186,7 +204,41 @@ export async function runPipeline(opts: {
     return;
   }
 
-  // ----------------------------------------------------- 3. resolve assets --
+  // -------------------------------------------------------- 3. strategy --
+  await startStage(runId, "test-strategist");
+  const strategy = (
+    await runSubAgent<Strategy>(
+      "test-strategist",
+      {
+        story: storyCtx,
+        behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion, kind: b.kind, risk: b.risk })),
+        framework: ws.testFramework,
+      },
+      mem("test-strategist"),
+      runId
+    )
+  ).output;
+  for (const p of strategy.criteria) {
+    await log(runId, `${p.priority} ${p.level} · ${p.techniques.join(", ")} — ${p.criterion.slice(0, 90)}`, "info", "test-strategist");
+  }
+  for (const n of strategy.scopeNotes) await log(runId, `scope note: ${n.slice(0, 200)}`, "warn", "test-strategist");
+  await endStage(runId, "test-strategist", "passed", `${strategy.summary} ${strategy.approach}`, strategy);
+  await pace();
+  const plan = strategy.criteria.map((c) => ({
+    criterion: c.criterion,
+    level: c.level,
+    priority: c.priority,
+    automate: c.automate,
+    preconditions: c.preconditions,
+    testData: c.testData,
+    scenarios: c.scenarios,
+  }));
+  // Existing Xray tests the strategist matched count as coverage for the verifier.
+  const existingCoverage = strategy.criteria.flatMap((c) =>
+    c.scenarios.filter((sc) => sc.coveredBy).map((sc) => ({ summary: `${sc.coveredBy} (existing) ${sc.title}`, criterion: c.criterion }))
+  );
+
+  // ----------------------------------------------------- 4. resolve assets --
   await startStage(runId, "asset-resolver");
   let repoPaths: string[] = [];
   if (bitbucketConfigured() && ws.bitbucketWorkspace && ws.bitbucketRepo) {
@@ -212,7 +264,7 @@ export async function runPipeline(opts: {
   await pace();
   for (const r of resolved.reuse) await log(runId, `reuse ${r.path} — ${r.why}`, "ok", "asset-resolver");
 
-  // -------------------------------------------------------- 4. write specs --
+  // -------------------------------------------------------- 5. write specs --
   await startStage(runId, "spec-author");
   let authored = (
     await runSubAgent<Author>("spec-author", {
@@ -222,6 +274,7 @@ export async function runPipeline(opts: {
       create: resolved.create.map((c) => ({ path: c.path, kind: c.kind })),
       conventions: resolved.conventions,
       framework: ws.testFramework,
+      strategy: plan,
     }, mem("spec-author"), runId)
   ).output;
 
@@ -254,7 +307,7 @@ export async function runPipeline(opts: {
   await endStage(runId, "spec-author", "passed", authored.summary, authored);
   await pace();
 
-  // ------------------------------------------------------------ 5. verify --
+  // ------------------------------------------------------------ 6. verify --
   // The verifier is adversarial, so a first pass often finds real defects. Rather than
   // stopping there, spec-author gets the findings back and revises. Two attempts: enough
   // to fix what a careful author would catch on re-read, not enough to loop forever.
@@ -265,7 +318,7 @@ export async function runPipeline(opts: {
       story: storyCtx,
       behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
       files: authored.files.map((f) => ({ path: f.path, content: f.content })),
-      testCases: authored.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })),
+      testCases: [...authored.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })), ...existingCoverage],
     }, mem("verifier"), runId)
   ).output;
   for (const d of verified.defects) {
@@ -293,6 +346,7 @@ export async function runPipeline(opts: {
         create: resolved.create.map((c) => ({ path: c.path, kind: c.kind })),
         conventions: resolved.conventions,
         framework: ws.testFramework,
+        strategy: plan,
         revision: {
           attempt,
           defects: verified.defects.map((d) => ({ path: d.path, issue: d.issue, fix: d.fix })),
@@ -336,7 +390,7 @@ export async function runPipeline(opts: {
         story: storyCtx,
         behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
         files: revised.files.map((f) => ({ path: f.path, content: f.content })),
-        testCases: revised.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })),
+        testCases: [...revised.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })), ...existingCoverage],
       }, mem("verifier"), runId)
     ).output;
     for (const d of verified.defects) {
@@ -354,13 +408,13 @@ export async function runPipeline(opts: {
 
   await pace();
 
-  // ------------------------------------------------------------ 6. review --
+  // ------------------------------------------------------------ 7. review --
   await startStage(runId, "reviewer");
   const reviewed = (
     await runSubAgent<Review>("reviewer", {
       story: storyCtx,
       files: authored.files.map((f) => ({ path: f.path, content: f.content })),
-      testCases: authored.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })),
+      testCases: [...authored.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })), ...existingCoverage],
       verifier: {
         passed: verified.passed,
         defects: verified.defects.map((d) => ({ path: d.path, severity: d.severity, issue: d.issue })),
@@ -378,8 +432,10 @@ export async function runPipeline(opts: {
         runId,
         target: "xray-tests",
         payloadJson: JSON.stringify({
-          projectKey: ws.xrayProjectKey || ws.jiraProjectKey,
+          // A story imported from Jira gets its tests in its own project.
+          projectKey: (story.jiraId ? story.key.split("-")[0] : "") || ws.xrayProjectKey || ws.jiraProjectKey,
           storyKey: story.key,
+          linkType: ws.testLinkType || "Test",
         }),
       },
     });
@@ -410,7 +466,24 @@ export async function runPipeline(opts: {
     data: {
       status: reviewed.publishReady ? "needs_review" : "blocked",
       finishedAt: new Date(),
-      outputJson: JSON.stringify({ analysis, clarification, resolved, authored, verified, reviewed }),
+      outputJson: JSON.stringify({ analysis, clarification, strategy, resolved, authored, verified, reviewed }),
     },
   });
+
+  // The test report, proposed as a comment on the Jira story. Like everything else, it is
+  // written only when someone approves it.
+  if (story.jiraId) {
+    const { buildStoryReport, reportAsComment } = await import("./report");
+    const report = await buildStoryReport(runId);
+    if (report) {
+      await db.publication.create({
+        data: {
+          runId,
+          target: "jira-comment",
+          payloadJson: JSON.stringify({ issueKey: story.key, body: reportAsComment(report), kind: "report" }),
+        },
+      });
+      await log(runId, "test report ready — approve it to post it on the Jira story", "ok");
+    }
+  }
 }

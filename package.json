@@ -13,12 +13,13 @@
     "test:pipeline": "tsx --env-file=.env scripts/pipeline-check.ts",
     "test:e2e": "tsx --env-file=.env scripts/pipeline-e2e.ts",
     "test:autopilot": "tsx --env-file=.env scripts/autopilot-e2e.ts",
+    "test:jira": "tsx --env-file=.env scripts/jira-e2e.ts",
     "db:up": "docker compose up -d db",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "worker": "tsx --env-file=.env scripts/worker.ts",
     "test:platform": "tsx --env-file=.env scripts/platform-check.ts",
-    "test": "npm run test:agents && npm run test:pipeline && npm run test:e2e && npm run test:autopilot && npm run test:platform",
+    "test": "npm run test:agents && npm run test:pipeline && npm run test:e2e && npm run test:autopilot && npm run test:jira && npm run test:platform",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

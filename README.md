@@ -2,7 +2,7 @@
 
 **Sprint in. Green out.**
 
-Autopilot reads your **Jira** stories, walks each one through a chain of six sub-agents, and proposes
+Autopilot reads your **Jira** stories, walks each one through a chain of seven sub-agents, and proposes
 **Xray** test cases and a **Bitbucket** branch and pull request. Nothing is written to your systems
 until you approve it.
 
@@ -32,16 +32,17 @@ so the next cycle makes fewer of the same mistakes. You watch all of it live.
 
 ### Inside `qe-pipeline`
 
-One Jira story walks six sub-agents, each with a typed input, a typed output, and one job:
+One Jira story walks seven sub-agents, each with a typed input, a typed output, and one job:
 
 | # | Sub-agent | What it does |
 |---|---|---|
 | 1 | `story-analyzer` | Turns the story into testable behaviours; separates genuine ambiguity from the merely unstated |
 | 2 | `clarify` | Writes one answerable question per ambiguity, each with a suggested default. **Stops the pipeline** when a wrong guess would test the wrong thing |
-| 3 | `asset-resolver` | Reads the Bitbucket repo to find fixtures and page objects that already exist, so the suite is extended rather than duplicated |
-| 4 | `spec-author` | Writes complete runnable files against the repo's own conventions, plus Xray cases with real steps and expected results |
-| 5 | `verifier` | Maps every acceptance criterion to the test covering it, and hunts placeholders, bad imports and assertions that cannot fail |
-| 6 | `reviewer` | The gate. Approves, or sends the work back — and writes the pull request |
+| 3 | `test-strategist` | Plans the testing before anything is written: a P1–P3 priority per criterion from its risk, the design techniques that fit it (boundary values, decision tables, state transitions, …), the test level, the preconditions and data, and positive/negative/edge scenarios. Reuses tests already linked to the story and flags scope changed in comments |
+| 4 | `asset-resolver` | Reads the Bitbucket repo to find fixtures and page objects that already exist, so the suite is extended rather than duplicated |
+| 5 | `spec-author` | Follows the strategy: complete runnable files against the repo's own conventions, plus Xray cases named `[Positive]`/`[Negative]`/`[Edge]` with real steps and expected results |
+| 6 | `verifier` | Maps every acceptance criterion to the test covering it (new or already linked), and hunts placeholders, bad imports and assertions that cannot fail |
+| 7 | `reviewer` | The gate. Approves, or sends the work back — and writes the pull request |
 
 **It converges rather than stalling.** When the verifier objects, spec-author revises and the
 verifier re-checks, up to twice. When `clarify` hits a blocking ambiguity the run stops and says
@@ -105,7 +106,7 @@ The **Autopilot** screen in the app runs one cycle over a sprint and streams it 
 |---|---|---|
 | Recall | memory | Loads the workspace's lessons and injects each into the agent it is scoped to |
 | Plan | `sprint-planner` | Sizes, orders and commits the sprint; drafts missing acceptance criteria |
-| Automate | `qe-pipeline` | Each committed story through the six sub-agents |
+| Automate | `qe-pipeline` | Each committed story through the seven sub-agents |
 | Execute | executor | Runs every generated test |
 | Heal | `qe-auto-heal` | Patches selector and timing drift and re-runs; escalates application defects untouched |
 | Review | `requirements-reviewer` | Every acceptance criterion judged **met / not met / untested / blocked** from execution evidence |
@@ -235,9 +236,28 @@ BITBUCKET_USERNAME="..."
 BITBUCKET_APP_PASSWORD="..."
 ```
 
-Acceptance criteria have no standard Jira field, so the importer checks the common custom fields
-first and falls back to parsing an "Acceptance Criteria" section out of the description — rather
-than reporting that a story has none.
+Custom fields are found **by name** on your site (`/rest/api/3/field`), not by hard-coded ids:
+"Acceptance Criteria", "Test Criteria" (or "Test Notes"), "Story Points" and "Sprint". Criteria
+written as `AC1 - title` headings, repeated Given/When/Then blocks, lists or lines are each split
+into one criterion. With no criteria field the importer parses an "Acceptance Criteria" section
+out of the description rather than reporting that a story has none.
+
+### Automate one live story
+
+Open **Jira** in the app (it shows whether Jira and Xray credentials work and whether the test
+link type exists). Search by key or text, open a story to see what the agents will read —
+criteria, test notes, linked Xray tests, recent comments — and press **Automate this story**.
+The run page shows the seven stages live and, when they finish:
+
+- **Test strategy & report**: per-criterion priority, level, design techniques, new and
+  existing tests, coverage, risks, scope changes found in comments and next steps. Download it
+  as Markdown (`/api/runs/<id>/report`, or `?format=json`).
+- **Proposals** waiting for approval: the Xray tests (each linked back to the story with the
+  link type set in Settings — `Test` by default, read as "<test> tests <story>", which is how
+  Xray counts coverage), the Bitbucket branch and PR, and the report as a Jira comment.
+
+Nothing is written to Jira, Xray or Bitbucket until an owner or admin approves it. Bugs are
+filed as `Bug`, or `Defect` in projects that have no Bug type.
 
 ## Deploy the app
 
@@ -312,9 +332,10 @@ server app deployed as above.
 
 ```bash
 npm run test:agents     # top-level agent contracts
-npm run test:pipeline   # all six sub-agents, including the revision loop
+npm run test:pipeline   # all seven sub-agents, including the revision loop
 npm run test:e2e        # the orchestrator against a real database
 npm run test:autopilot  # learning cycles: heals, review, lessons, approval, bugs, run-until-stable
+npm run test:jira       # a live story end to end against a local fake of Jira Cloud and Xray
 npm run test:platform   # job queue, worker, crash recovery, retention, env validation
 npm run test:auth       # session handling across every authenticated page
 npm test                # all of the above except auth
@@ -339,16 +360,17 @@ contradicted and retired. CI runs all of it on every push.
 
 ```
 Jira story
-   └─ story-analyzer → clarify → asset-resolver → spec-author → verifier → reviewer
-                          │                            ↑           │
-                     blocks & asks                     └───────────┘
-                                                     revises, up to 2×
-   └─ proposals → you approve → Xray test cases + Bitbucket branch & PR
+   └─ story-analyzer → clarify → test-strategist → asset-resolver → spec-author → verifier → reviewer
+                          │                                               ↑           │
+                     blocks & asks                                        └───────────┘
+                                                                        revises, up to 2×
+   └─ report + proposals → you approve → linked Xray tests + Bitbucket branch & PR + report comment
 ```
 
-1. **Import.** Stories come from Jira, with acceptance criteria and story points.
+1. **Import.** Stories come from Jira — a whole project, or one story picked on the Jira page —
+   with criteria, test notes, points, sprint, epic, comments and the tests already linked.
 2. **Plan.** `sprint-planner` sizes what has no estimate and commits to capacity.
-3. **Pipeline.** Each committed story walks the six sub-agents above.
+3. **Pipeline.** Each committed story walks the seven sub-agents above.
 4. **Approve.** The reviewer's approval produces proposals; yours publishes them.
 
 ## Repository layout
@@ -357,7 +379,7 @@ Jira story
 src/app/(app)/              authenticated screens — sprint, autopilot, agents, runs, results, settings
 src/app/api/                live-state polling, /api/health, /api/ready
 src/lib/agents/             agent registry and runtime; llm.ts is the one model client
-src/lib/agents/pipeline*.ts the six sub-agents and the orchestrator that runs them
+src/lib/agents/pipeline*.ts the seven sub-agents and the orchestrator that runs them
 src/lib/agents/autopilot.ts the self-learning cycle; memory.ts, executor.ts beside it
 src/lib/jobs/               the durable job queue, its handlers and the worker
 src/lib/env.ts, log.ts      validated configuration, structured logging

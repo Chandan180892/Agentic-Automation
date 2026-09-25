@@ -85,6 +85,8 @@ model Workspace {
 
   /// "auto": a new lesson is applied from the next cycle. "review": it waits for a person.
   lessonApproval      String @default("auto")
+  /// The Jira link type Xray uses for coverage ("<test> tests <story>"). Xray's default is "Test".
+  testLinkType        String @default("Test")
 }
 
 model Membership {
@@ -132,6 +134,10 @@ model Story {
   status             String   @default("todo") // todo | specced | running | green | failing
   tagsJson           String   @default("[]")
   committed          Boolean  @default(true)
+  /// Live Jira context the agents read: test criteria, recent comments, parent epic, the Xray
+  /// tests already linked, status, priority, sprint. JSON; refreshed on every import.
+  contextJson        String   @default("{}")
+  importedAt         DateTime?
   createdAt          DateTime @default(now())
   sprint             Sprint     @relation(fields: [sprintId], references: [id], onDelete: Cascade)
   testCases          TestCase[]

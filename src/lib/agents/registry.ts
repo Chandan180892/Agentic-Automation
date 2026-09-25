@@ -117,7 +117,7 @@ Method:
   "qe-pipeline": defineAgent({
     id: "qe-pipeline",
     name: "QE pipeline",
-    role: "Orchestrator · six sub-agents",
+    role: "Orchestrator · seven sub-agents",
     description:
       "Walks one Jira story through story-analyzer, clarify, asset-resolver, spec-author, verifier and reviewer. Revises its own work when the verifier objects, and stops rather than guessing when the story is genuinely ambiguous.",
     io: ["Jira story", "Xray tests + Bitbucket PR"],

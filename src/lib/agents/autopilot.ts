@@ -26,13 +26,13 @@ type Signal = z.infer<typeof S.LearnerIn>["signals"][number];
  *      ↑                                                            │
  *      └──────────── lessons feed the next cycle's agents ──────────┘
  *
- * Every step is an existing agent (or the six-stage pipeline) run as a child of the cycle, so
+ * Every step is an existing agent (or the seven-stage pipeline) run as a child of the cycle, so
  * each one keeps its own run page and log. The cycle's own log narrates what happened between
  * them, and its stages are the eight phases in autopilot-phases.ts.
  */
 export { PHASES, type PhaseId };
 
-const PIPELINE_SCOPES: SubAgentId[] = ["story-analyzer", "clarify", "asset-resolver", "spec-author", "verifier", "reviewer"];
+const PIPELINE_SCOPES: SubAgentId[] = ["story-analyzer", "clarify", "test-strategist", "asset-resolver", "spec-author", "verifier", "reviewer"];
 const MAX_HEALS_PER_TEST = 3;
 
 export interface TestResult extends ExecutedTest {

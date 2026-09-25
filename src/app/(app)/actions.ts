@@ -273,7 +273,7 @@ export const planSprint = action(async (sprintId: string): Promise<void> => {
 
 // ------------------------------------------------------------ qe-pipeline --
 
-/** One Jira story through the six sub-agents, as a background job. */
+/** One Jira story through the seven sub-agents, as a background job. */
 export const runStoryPipeline = action(async (storyId: string): Promise<void> => {
   const c = await ctx();
   const { workspace } = c;
@@ -367,39 +367,52 @@ export const importFromJira = action(async (formData: FormData): Promise<void> =
     throw new ActionError(`Could not read ${projectKey} from Jira: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  for (const [i, s] of stories.entries()) {
-    await db.story.upsert({
-      where: { sprintId_key: { sprintId, key: s.key } },
-      create: {
-        sprintId,
-        key: s.key,
-        jiraId: s.id,
-        jiraUrl: s.url,
-        issueType: s.issueType,
-        title: s.summary,
-        description: s.description,
-        acceptanceCriteria: JSON.stringify(s.acceptanceCriteria),
-        points: s.storyPoints,
-        priority: i,
-        tagsJson: JSON.stringify(s.labels),
-      },
-      update: {
-        jiraId: s.id,
-        jiraUrl: s.url,
-        issueType: s.issueType,
-        title: s.summary,
-        description: s.description,
-        acceptanceCriteria: JSON.stringify(s.acceptanceCriteria),
-        points: s.storyPoints,
-        tagsJson: JSON.stringify(s.labels),
-      },
-    });
-  }
+  const { upsertJiraStory } = await import("@/lib/atlassian/import");
+  for (const [i, s] of stories.entries()) await upsertJiraStory(sprintId, s, i);
 
   if (workspace.jiraProjectKey !== projectKey) {
     await db.workspace.update({ where: { id: workspace.id }, data: { jiraProjectKey: projectKey } });
   }
   revalidatePath("/sprint");
+});
+
+/**
+ * Picks one live Jira story: re-reads it (criteria, test notes, comments, linked Xray tests),
+ * stores it in the project's "Jira · KEY" sprint, and runs the pipeline on it as a job.
+ */
+export const automateJiraStory = action(async (issueKey: string): Promise<void> => {
+  const c = await ctx();
+  const { workspace } = c;
+  const key = issueKey.trim().toUpperCase();
+  if (!/^[A-Z][A-Z0-9_]*-\d+$/.test(key)) throw new ActionError("That is not a Jira issue key.");
+  await rateLimit(c, "qe-pipeline.jira");
+
+  const { fetchStory } = await import("@/lib/atlassian/jira");
+  let story: Awaited<ReturnType<typeof fetchStory>>;
+  try {
+    story = await fetchStory(key);
+  } catch (err) {
+    throw new ActionError(`Could not read ${key} from Jira: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const { jiraSprintFor, upsertJiraStory } = await import("@/lib/atlassian/import");
+  const sprint = await jiraSprintFor(workspace.id, key.split("-")[0]);
+  const row = await upsertJiraStory(sprint.id, story);
+  await audit(c, "jira.automate", key);
+
+  const run = await db.run.create({
+    data: {
+      workspaceId: workspace.id,
+      sprintId: sprint.id,
+      storyId: row.id,
+      agent: "qe-pipeline",
+      mode: "single",
+      status: "queued",
+      inputJson: JSON.stringify({ storyKey: key, source: "jira" }),
+    },
+  });
+  await enqueue({ workspaceId: workspace.id, kind: "story-pipeline", payload: { runId: run.id, storyId: row.id }, runId: run.id });
+  revalidatePath("/jira");
+  redirect(`/runs/${run.id}`);
 });
 
 // ------------------------------------------------------------- publishing --
@@ -434,15 +447,17 @@ export const publish = action(async (publicationId: string): Promise<void> => {
     if (pub.target === "jira-comment") {
       const { addComment } = await import("@/lib/atlassian/jira");
       const res = await addComment(payload.issueKey, payload.body);
-      await logEvent(runId, `posted questions to ${payload.issueKey}`, "ok", "jira");
+      await logEvent(runId, `posted the ${payload.kind === "report" ? "test report" : "questions"} to ${payload.issueKey}`, "ok", "jira");
       await db.publication.update({
         where: { id: pub.id },
         data: { status: "published", publishedAt: new Date(), resultJson: JSON.stringify(res) },
       });
     } else if (pub.target === "xray-tests") {
       const { createTests } = await import("@/lib/atlassian/xray");
+      // A retry after a partial failure only creates what is still missing.
+      const pending = pub.run.testCases.filter((t) => !t.published);
       const created = await createTests(
-        pub.run.testCases.map((t) => ({
+        pending.map((t) => ({
           summary: t.summary,
           testType: t.testType as "Manual" | "Cucumber" | "Generic",
           priority: t.priority,
@@ -451,14 +466,20 @@ export const publish = action(async (publicationId: string): Promise<void> => {
           labels: parseJson<string[]>(t.labelsJson, []),
           storyKey: pub.run.story?.key ?? "",
           projectKey: payload.projectKey,
-        }))
+        })),
+        payload.linkType || workspace.testLinkType || "Test"
       );
       for (const [i, c] of created.entries()) {
-        const row = pub.run.testCases[i];
+        const row = pending[i];
         if (row) {
           await db.testCase.update({ where: { id: row.id }, data: { xrayKey: c.key, published: true } });
         }
-        await logEvent(runId, `created Xray test ${c.key} — ${c.summary}`, "ok", "xray");
+        await logEvent(
+          runId,
+          `created Xray test ${c.key} — ${c.summary}${c.linked ? ` · linked to ${pub.run.story?.key}` : ""}${c.warnings.length ? ` · ${c.warnings.join("; ")}` : ""}`,
+          c.warnings.length ? "warn" : "ok",
+          "xray"
+        );
       }
       await db.publication.update({
         where: { id: pub.id },
@@ -670,6 +691,7 @@ const IntegrationsForm = z.object({
   bitbucketRepo: z.string().trim().regex(/^[\w.-]{0,62}$/, "letters, digits, . _ - only").optional().default(""),
   defaultBranch: z.string().trim().regex(/^[\w./-]{1,100}$/, "is not a valid branch name").optional().default("main"),
   testFramework: z.string().trim().regex(/^[\w .+-]{1,40}$/, "is not a framework name").optional().default("playwright"),
+  testLinkType: z.string().trim().regex(/^[\w .-]{1,60}$/, "is not a link type name").optional().default("Test"),
 });
 
 export const saveIntegrations = action(async (formData: FormData): Promise<void> => {

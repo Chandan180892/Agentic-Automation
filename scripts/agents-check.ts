@@ -26,7 +26,7 @@ const STORY = {
 async function main() {
   console.log(`mode: ${agentsAreLive() ? "LIVE (calling the model)" : "SIMULATED (no API key)"}\n`);
   check("registry exposes the eight top-level agents", AGENT_LIST.length === 8, `${AGENT_LIST.length}`);
-  check("pipeline exposes six sub-agents", SUB_AGENT_LIST.length === 6, `${SUB_AGENT_LIST.length}`);
+  check("pipeline exposes seven sub-agents", SUB_AGENT_LIST.length === 7, `${SUB_AGENT_LIST.length}`);
 
   // sprint-planner
   const plan = await invokeAgent<{ commitment: unknown[]; totalPoints: number; draftedAcceptanceCriteria: unknown[] }>(

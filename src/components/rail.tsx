@@ -18,6 +18,7 @@ const ITEMS: { group: string; links: NavLink[] }[] = [
     group: "Workspace",
     links: [
       { href: "/sprint", label: "Sprint planner", key: "sprint", d: "M4 6h16M4 12h10M4 18h13" },
+      { href: "/jira", label: "Jira", key: null, d: "M12 3l9 9-9 9-9-9 9-9ZM12 8l4 4-4 4-4-4 4-4Z" },
       { href: "/autopilot", label: "Autopilot", key: "autopilot", d: "M21 12a9 9 0 1 1-3-6.7M21 4v5h-5M12 8v4l3 2" },
       { href: "/agents", label: "Agents", key: "agents", d: "M12 8V4M9 14h.01M15 14h.01", rect: [4, 8, 16, 12] as [number, number, number, number] },
     ],

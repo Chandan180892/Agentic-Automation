@@ -9,6 +9,8 @@ import { Card, CardHeader, CardBody, Pill, Sub, Button, Label } from "@/componen
 import { RunStream } from "./stream";
 import { publish } from "../../actions";
 import { SUB_AGENT_LIST } from "@/lib/agents/pipeline-registry";
+import { buildStoryReport } from "@/lib/agents/report";
+import { ReportCard } from "./report-card";
 
 export const metadata: Metadata = { title: "Run" };
 export const dynamic = "force-dynamic";
@@ -70,6 +72,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
         startedAt: null,
         finishedAt: null,
       }));
+  const report = isPipeline && run.story && run.status !== "queued" && run.status !== "running" ? await buildStoryReport(run.id) : null;
   const done = stages.filter((s) => s.status === "passed").length;
   const generated = run.assets.filter((a) => !a.reused);
   const reused = run.assets.filter((a) => a.reused);
@@ -152,6 +155,8 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
           </Card>
         )}
 
+        {report && <ReportCard runId={run.id} report={report} />}
+
         {run.publications.length > 0 && (
           <Card className="mb-4">
             <CardHeader title="Waiting for your approval">
@@ -164,7 +169,9 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
                 return (
                   <div key={p.id} className="flex flex-wrap items-center gap-2.5 rounded-lg border border-line-soft bg-surface-2 px-3.5 py-3">
                     <div className="min-w-0">
-                      <div className="text-[13px] font-semibold">{TARGET_LABEL[p.target] ?? p.target}</div>
+                      <div className="text-[13px] font-semibold">
+                        {p.target === "jira-comment" && payload.kind === "report" ? "Post the test report to Jira" : TARGET_LABEL[p.target] ?? p.target}
+                      </div>
                       <div className="mt-0.5 font-mono text-[11px] text-muted">
                         {p.target === "bitbucket-branch"
                           ? `${payload.workspace}/${payload.repo} · ${payload.branch} → ${payload.fromBranch}`

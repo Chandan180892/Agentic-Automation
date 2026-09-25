@@ -55,8 +55,8 @@ async function main() {
     ],
   });
 
-  check("all six stages recorded", good.full.stages.length === 6, `${good.full.stages.length}`);
-  check("stages ran in order", good.full.stages.map((s) => s.order).join(",") === "1,2,3,4,5,6");
+  check("all seven stages recorded", good.full.stages.length === 7, `${good.full.stages.length}`);
+  check("stages ran in order", good.full.stages.map((s) => s.order).join(",") === "1,2,3,4,5,6,7");
   check("run reached needs_review", good.full.status === "needs_review", good.full.status);
   check("spec files were written", good.full.assets.filter((a) => !a.reused).length > 0);
   check("Xray test cases were produced", good.full.testCases.length > 0, `${good.full.testCases.length}`);
