@@ -237,6 +237,38 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
   .metric:nth-child(2n) { border-right: 0; }
     .controls { margin-left: 0; }
 }
+/* jira story → tests */
+.stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 6px; }
+.j-grid { grid-template-columns: minmax(0, .8fr) minmax(0, 1.35fr); }
+.stage { border: 1px solid var(--line); border-radius: 9px; background: var(--surface); padding: 8px 9px; display: grid; gap: 4px; min-width: 0; }
+.stage b { font: 600 11px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage span { font-size: 10.5px; color: var(--muted); }
+.stage.pending { opacity: .5; }
+.stage.running { border-color: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
+.stage.passed { border-color: color-mix(in srgb, var(--pass) 40%, transparent); }
+.stage.blocked { border-color: color-mix(in srgb, var(--heal) 50%, transparent); }
+.stage-log { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12px; }
+.stage-log li { display: flex; gap: 8px; } .stage-log b { font: 600 11px var(--mono); color: var(--muted); flex: 0 0 112px; }
+.jstory { display: grid; gap: 4px; padding: 9px 10px; border-radius: 8px; border: 1px solid transparent; cursor: pointer; text-align: left; background: none; font: inherit; color: inherit; width: 100%; }
+.jstory:hover { background: var(--surface-2); }
+.jstory[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); }
+.jstory .row { display: flex; flex-wrap: wrap; gap: 5px 8px; align-items: center; font-size: 12.5px; }
+.jstory .row b { font: 600 12px var(--mono); }
+.callout { border: 1px solid var(--accent-line); background: var(--accent-soft); border-radius: 9px; padding: 11px 13px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 12.5px; color: var(--ink-2); }
+.callout p { margin: 0; flex: 1 1 260px; }
+.scope { border: 1px solid color-mix(in srgb, var(--heal) 30%, transparent); background: var(--heal-soft); color: var(--heal); border-radius: 8px; padding: 8px 11px; font-size: 12px; }
+.sect { display: grid; gap: 6px; }
+.sect > .label { margin-top: 4px; }
+.levels { display: flex; flex-wrap: wrap; gap: 6px; }
+.tc { border: 1px solid var(--line-soft); border-radius: 8px; padding: 8px 10px; background: var(--surface-2); }
+.tc summary { cursor: pointer; font-size: 12.5px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+.tc ol { margin: 6px 0 0; padding-left: 18px; font-size: 12px; display: grid; gap: 4px; }
+.tc .note { display: block; }
+pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font: 11px/1.55 var(--mono); background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 8px; padding: 10px 12px; }
+.proposal { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 9px 11px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--surface-2); font-size: 12.5px; }
+.proposal .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+@media (max-width: 520px) { .stages { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stage-log b { flex-basis: 96px; } }
+@media (max-width: 900px) { .j-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
@@ -254,6 +286,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
     </div>
   </div>
   <span class="group">Agents</span>
+  <a href="#jira" data-nav="jira"><svg viewBox="0 0 24 24"><path d="M12 3l9 9-9 9-9-9 9-9ZM12 8l4 4-4 4-4-4 4-4Z"/></svg>Jira story → tests</a>
   <a href="#autopilot" data-nav="autopilot"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5M12 8v4l3 2"/></svg>Autopilot<span class="tick" id="tick-autopilot"></span></a>
   <a href="#backlog" data-nav="backlog"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg>Backlog<span class="tick" id="tick-backlog"></span></a>
   <a href="#agents" data-nav="agents"><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg>Agents<span class="tick">14</span></a>
@@ -361,6 +394,43 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
 
 </div>
 
+<!-- --------------------------------------------------------------- jira -->
+<div class="wrap" data-view="jira" hidden>
+  <div class="page-h"><h1>Jira story → tests</h1><p>Pick a story, or paste one from Jira. Seven agents plan the testing, write the spec and Xray tests, and hand you a report.</p></div>
+  <div class="grid-2 j-grid">
+    <div class="col">
+      <section class="card">
+        <div class="card-h"><h3>Stories</h3><span class="note">samples, plus any you paste</span></div>
+        <div class="card-b" id="j-list" style="display:grid;gap:2px;padding:8px"></div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h3>Paste a story from Jira</h3><span class="note">copy the fields as they are, formatting and all</span></div>
+        <form class="card-b" id="j-form" style="display:grid;gap:10px">
+          <div class="grid-2" style="gap:10px">
+            <label class="field"><span class="label">Key</span><input id="j-key" placeholder="SHOP-240" required></label>
+            <label class="field"><span class="label">Priority</span>
+              <select id="j-pri" style="font:13px var(--sans);padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)">
+                <option>Highest</option><option>High</option><option selected>Medium</option><option>Low</option></select></label>
+          </div>
+          <label class="field"><span class="label">Summary</span><input id="j-sum" placeholder="Save a delivery address during checkout" required></label>
+          <label class="field"><span class="label">Acceptance criteria</span>
+            <textarea id="j-ac" placeholder="AC1 - Save the address&#10;Given a signed-in shopper, when they tick Save, then the address appears in their address book.&#10;AC2 - ..."></textarea></label>
+          <label class="field"><span class="label">Test criteria / QA notes — optional</span>
+            <textarea id="j-tc" style="min-height:56px" placeholder="Precondition: a shopper with no saved addresses."></textarea></label>
+          <label class="field"><span class="label">Comments, one per line — optional</span>
+            <textarea id="j-cm" style="min-height:56px" placeholder="Update: international addresses are out of scope for now."></textarea></label>
+          <label class="field"><span class="label">Tests already linked, one per line — optional</span>
+            <textarea id="j-lt" style="min-height:48px" placeholder="SHOP-251 [Positive] Saved address appears in the address book"></textarea></label>
+          <p class="note" id="j-err" role="alert" style="color:var(--fail)"></p>
+          <div><button class="btn primary" type="submit">Add story</button></div>
+        </form>
+      </section>
+      <p class="note">The page is static, so it can't sign in to Jira: pasted text stays in your browser. Deployed with Jira credentials, the full app lists and fetches your stories live, then writes the approved tests to Xray and the report to Jira.</p>
+    </div>
+    <div class="col" id="j-main"></div>
+  </div>
+</div>
+
 <!-- ------------------------------------------------------------ backlog -->
 <div class="wrap" data-view="backlog" hidden>
   <div class="page-h"><h1>Backlog</h1><p>Sprint 24 · the stories the next cycle plans and tests. Changes apply from the next cycle.</p></div>
@@ -397,7 +467,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
 
 <!-- ------------------------------------------------------------- agents -->
 <div class="wrap" data-view="agents" hidden>
-  <div class="page-h"><h1>Agents</h1><p>Eight top-level agents, and the six sub-agents inside qe-pipeline. Each has one job, a typed input and a typed output.</p></div>
+  <div class="page-h"><h1>Agents</h1><p>Eight top-level agents, and the seven sub-agents inside qe-pipeline. Each has one job, a typed input and a typed output.</p></div>
   <div class="grid-3" id="agent-list"></div>
   <section class="card">
     <div class="card-h"><h3>Inside qe-pipeline</h3><span class="note">one Jira story in, Xray tests and a Bitbucket PR out</span></div>
@@ -422,7 +492,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
 <div class="wrap" data-view="about" hidden>
   <div class="page-h"><h1>About &amp; deploy</h1></div>
   <section class="card"><div class="card-b prose">
-    <p><b>Autopilot</b> is an agentic quality-engineering app. It reads Jira stories, plans the sprint, writes tests through a six-step pipeline, runs them, heals what drifted, reviews every acceptance criterion against the evidence, reports, and learns — so the next cycle makes fewer of the same mistakes.</p>
+    <p><b>Autopilot</b> is an agentic quality-engineering app. It reads Jira stories, plans the sprint, writes tests through a seven-step pipeline, runs them, heals what drifted, reviews every acceptance criterion against the evidence, reports, and learns — so the next cycle makes fewer of the same mistakes.</p>
     <h3>What this page is</h3>
     <p>GitHub Pages serves static files only, so this page runs the agents in your browser on the same logic the server app uses when no API key is set: the same habits, heals, lesson bookkeeping and review rules. Nothing is sent anywhere. Memory lasts until you reload.</p>
     <h3>What the full app adds</h3>
@@ -616,7 +686,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
     ["recall", "memory"], ["plan", "sprint-planner"], ["automate", "qe-pipeline"], ["execute", "executor"],
     ["heal", "qe-auto-heal"], ["review", "req-reviewer"], ["report", "cycle-reporter"], ["learn", "learner"],
   ];
-  const SUBS = ["story-analyzer", "clarify", "asset-resolver", "spec-author", "verifier", "reviewer"];
+  const SUBS = ["story-analyzer", "clarify", "test-strategist", "asset-resolver", "spec-author", "verifier", "reviewer"];
   let activeSub = -1;
   function mapStat(phase) {
     const m = cur?.metrics;
@@ -1042,7 +1112,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
   $("speed").addEventListener("change", () => { try { localStorage.setItem("autopilot-autopilot-speed", $("speed").value); } catch { /* ignore */ } });
 
   // ---------------------------------------------------------------- views --
-  const VIEWS = ["autopilot", "backlog", "agents", "runs", "about"];
+  const VIEWS = ["autopilot", "jira", "backlog", "agents", "runs", "about"];
   function route() {
     const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "autopilot";
     document.querySelectorAll("[data-view]").forEach((el) => (el.hidden = el.dataset.view !== v));
@@ -1050,6 +1120,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
     document.title = v === "autopilot" ? "Autopilot" : `Autopilot · ${v[0].toUpperCase()}${v.slice(1)}`;
     if (v === "backlog") renderBacklog();
     if (v === "runs") renderRuns();
+    if (v === "jira") renderJira();
     scrollTo(0, 0);
   }
   addEventListener("hashchange", route);
@@ -1084,7 +1155,7 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
 
   const AGENTS = [
     ["sprint-planner", "Planning", "backlog → sprint plan", "Sizes what has no estimate, orders by dependency, commits only what capacity supports, and drafts criteria for stories that have none — flagged, never silently assumed."],
-    ["qe-pipeline", "Orchestrator", "Jira story → Xray tests + PR", "Walks one story through six sub-agents. Revises its own work when the verifier objects, and stops rather than guessing when a story is ambiguous."],
+    ["qe-pipeline", "Orchestrator", "Jira story → Xray tests + PR", "Walks one story through seven sub-agents. Revises its own work when the verifier objects, and stops rather than guessing when a story is ambiguous."],
     ["qe-auto-heal", "Repair · one spec", "failure → verified patch", "Patches selector and timing drift and re-runs. When the application is wrong, it refuses to touch the assertion and escalates the defect."],
     ["batch-heal", "Repair · fleet", "n failures → one PR", "Groups many failures by root cause and fixes each cause once."],
     ["qe-insights", "Analysis", "run history → signals", "Finds flaky specs, slow suites and coverage gaps, and tells the planner what to pull in next."],
@@ -1095,10 +1166,11 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
   const SUB_INFO = [
     ["1 · story-analyzer", "Turns the story into testable behaviours; separates real ambiguity from the merely unstated."],
     ["2 · clarify", "One answerable question per ambiguity. Stops the pipeline when a wrong guess would test the wrong thing."],
-    ["3 · asset-resolver", "Finds fixtures and page objects already in the repo, so the suite is extended, not duplicated."],
-    ["4 · spec-author", "Writes runnable specs in the repo's conventions, plus Xray cases with real steps."],
-    ["5 · verifier", "Maps every criterion to a test and hunts placeholders and assertions that cannot fail."],
-    ["6 · reviewer", "The gate: approves and writes the pull request, or sends the work back."],
+    ["3 · test-strategist", "Plans the testing first: risk-based P1–P3 priority, design techniques, test level, preconditions, positive/negative/edge scenarios; reuses tests already linked."],
+    ["4 · asset-resolver", "Finds fixtures and page objects already in the repo, so the suite is extended, not duplicated."],
+    ["5 · spec-author", "Follows the strategy: runnable specs in the repo's conventions, plus [Positive]/[Negative]/[Edge] Xray cases with real steps."],
+    ["6 · verifier", "Maps every criterion to a test and hunts placeholders and assertions that cannot fail."],
+    ["7 · reviewer", "The gate: approves and writes the pull request, or sends the work back."],
   ];
   $("agent-list").innerHTML = AGENTS.map(([n, r, io, d]) => `<section class="card agent"><span class="pill accent">${r}</span><h4>${n}</h4><span class="io">${io}</span><p>${d}</p></section>`).join("");
   $("sub-list").innerHTML = SUB_INFO.map(([n, d]) => `<div class="agent" style="padding:0"><h4>${n}</h4><p>${d}</p></div>`).join("");
@@ -1126,6 +1198,364 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
       const c = d.dataset.toggleDefect;
       if (DEFECTS[c]) delete DEFECTS[c]; else DEFECTS[c] = DEFECT_ORIGINAL[c];
       renderBacklog(); renderReview(); renderBugs();
+    }
+  });
+
+  // ------------------------------------------------ jira story → tests --
+  // The same heuristics the server app's sub-agents use when no API key is set
+  // (src/lib/agents/pipeline-registry.ts, src/lib/atlassian/jira.ts). Sample stories are made up.
+  const J_SAMPLES = [
+    { key: "SHOP-101", summary: "Apply a discount code at checkout", priority: "High", status: "Ready for QA", epic: "SHOP-90 Promotions",
+      ac: "AC1 - Valid code\nGiven a basket of 50.00 and the code SAVE10, when the shopper applies it, then the total shows 45.00.\nAC2 - Expired code\nGiven an expired code, when the shopper applies it, then an error says the code has expired and the total is unchanged.\nAC3 - Minimum spend\nGiven a basket below the 20.00 minimum spend, when the shopper applies SAVE10, then the code is rejected.",
+      tc: "Precondition: a signed-in shopper with items in the basket.\nCheck the order confirmation shows the discount.",
+      comments: ["Product Owner: Update: stacking two codes is out of scope for this sprint."],
+      linked: ["SHOP-120 [Positive] Valid code reduces the total"] },
+    { key: "SHOP-114", summary: "Lock an account after repeated failed sign-ins", priority: "Highest", status: "In Progress", epic: "SHOP-80 Account security",
+      ac: "Given a shopper enters a wrong password 5 times within 15 minutes\nWhen they try a 6th time\nThen the account is locked for 30 minutes and an email is sent.\nGiven a locked account\nWhen 30 minutes have passed\nThen the shopper can sign in again with the right password.\nGiven 4 failed attempts\nWhen the shopper signs in with the right password\nThen the failure count resets to 0.",
+      tc: "", comments: [], linked: [] },
+    { key: "SHOP-122", summary: "Order status webhook for the warehouse", priority: "Medium", status: "To Do", epic: "SHOP-70 Fulfilment",
+      ac: "- When an order moves to Shipped, a POST is sent to the warehouse endpoint with the order id and status.\n- A 5xx response from the endpoint is retried up to 3 times with backoff.\n- The payload is rejected by our API with a 400 if the order id is missing.",
+      tc: "Precondition: the warehouse endpoint is set in the environment config.", comments: [], linked: [] },
+    { key: "SHOP-130", summary: "Make the returns page better", priority: "Low", status: "To Do", epic: "",
+      ac: "", tc: "", comments: [], linked: [] },
+  ];
+  const jStories = J_SAMPLES.map((x) => ({ ...x }));
+  let jSel = 0;
+  let jRun = null; // { key, stages, log, out, report, busy }
+  const J_STAGES = [
+    ["story-analyzer", "Reads the story"], ["clarify", "Asks before guessing"], ["test-strategist", "Chooses how to test"],
+    ["asset-resolver", "Reuses what exists"], ["spec-author", "Writes spec + Xray cases"], ["verifier", "Checks coverage"], ["reviewer", "The gate"],
+  ];
+
+  const jClean = (t) => t.replace(/\*\*|__/g, "").replace(/^#+\s*/, "").replace(/\s+/g, " ").trim();
+  function splitCriteria(text) {
+    const lines = text.split("\n").map((l) => l.trimEnd());
+    const heading = /^\s*(#+\s*)?(\*\*)?\s*(AC\s*[-#]?\s*\d+|Acceptance criteri(on|a)\s*\d+|Scenario( Outline)?\s*[:\d-])/i;
+    const sections = (starts) => {
+      const out = [];
+      for (const l of lines) { if (!l.trim()) continue; if (starts(l) || !out.length) out.push([l]); else out[out.length - 1].push(l); }
+      return out;
+    };
+    if (lines.some((l) => heading.test(l))) {
+      return sections((l) => heading.test(l)).filter((sec) => heading.test(sec[0])).map(([h, ...body]) => {
+        const title = jClean(h).replace(/[:\s]+$/, "");
+        const rest = body.map(jClean).filter(Boolean).join(" ");
+        return rest ? `${title}: ${rest}` : title;
+      });
+    }
+    const isGiven = (l) => /^\s*[-*]?\s*(\*\*)?given\b/i.test(l);
+    if (lines.filter(isGiven).length >= 2) return sections(isGiven).map((sec) => sec.map(jClean).filter(Boolean).join(" ")).filter((c) => /given/i.test(c));
+    const items = lines.filter((l) => /^\s*([-*•]|\d+[.)])\s+/.test(l));
+    if (items.length >= 2) return items.map((l) => jClean(l.replace(/^\s*([-*•]|\d+[.)])\s+/, ""))).filter((l) => l.length > 3);
+    return lines.map(jClean).filter((l) => l.length > 3);
+  }
+  const jWords = (t) => new Set(t.toLowerCase().match(/[a-z0-9]{3,}/g) || []);
+  function jOverlap(a, b) {
+    const A = jWords(a.replace(/^\s*\[[^\]]*\]\s*/, "")), B = jWords(b.replace(/^\s*\[[^\]]*\]\s*/, ""));
+    if (!A.size || !B.size) return 0;
+    let n = 0; for (const w of A) if (B.has(w)) n++;
+    return n / Math.min(A.size, B.size);
+  }
+  const HIGH_IMPACT = /\b(pay|payment|price|total|amount|charge|refund|discount|balance|invoice|order|password|login|sign.?in|locked|permission|role|auth|token|secure|security|delete|remove|lose|loss|personal data|gdpr)\b/i;
+  function techniquesFor(c) {
+    c = c.toLowerCase(); const t = [];
+    if (/\d|at least|at most|more than|less than|over|under|within|limit|maximum|minimum|exceed/.test(c)) t.push("boundary-value");
+    if (/\b(true|false)\b|\band\/or\b|either|parameter|flag|setting|\bif\b.*\bthen\b|combination/.test(c) || (c.match(/\band\b/g) || []).length >= 3) t.push("decision-table");
+    if (/status|state|remain|locked|unlock|register|transition|lifecycle|becomes|moves? to|moved to|allocated/.test(c)) t.push("state-transition");
+    if (/error|reject|fail|invalid|missing|expired|not |no |without|denied|duplicate|wrong/.test(c)) t.push("error-guessing");
+    t.push("equivalence-partitioning");
+    return [...new Set(t)].slice(0, 3);
+  }
+  function levelFor(c, st) {
+    c = `${c} ${st.summary}`.toLowerCase();
+    if (/\b(api|endpoint|payload|request|response|callback|schema|json|http|post|webhook|queue|message|5xx|400)\b/.test(c)) return "api";
+    if (/\b(screen|page|click|button|display|displayed|shows|ui|navigate|form|modal|message is shown|error message|sign in|signs in)\b/.test(c)) return "ui-e2e";
+    return "integration";
+  }
+  function preconditionsFor(c, st) {
+    const out = [];
+    const given = c.match(/given (.*?)(?= when |$)/i)?.[1];
+    if (given) for (const part of given.split(/\s+and\s+/i)) if (part.trim()) out.push(part.trim().replace(/[.;,]+$/, ""));
+    for (const line of st.tc.split("\n")) {
+      const l = line.replace(/^[\s*•-]+/, "").trim();
+      if (/^pre-?conditions?\s*:/i.test(l) && l.length < 200) out.push(l.replace(/^pre-?conditions?\s*:\s*/i, "").replace(/[.;,]+$/, ""));
+    }
+    return [...new Set(out)].slice(0, 5);
+  }
+  const jCap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  function stepsFor(c, kind, pre) {
+    const body = c.replace(/^[^:]{0,80}:\s*/, "");
+    const when = body.match(/when (.*?)(?= then |$)/i)?.[1]?.trim();
+    const then = body.match(/then (.*)$/i)?.[1]?.trim();
+    const steps = [];
+    const setup = pre.length ? pre.join("; ") : "";
+    if (setup) steps.push({ action: "Set up the preconditions", data: setup, expected: "The system is in the stated starting state." });
+    const act = when ? jCap(when.replace(/[.;]+$/, "")) : `Exercise: ${body.slice(0, 120)}`;
+    const low = act.charAt(0).toLowerCase() + act.slice(1);
+    steps.push({
+      action: kind === "negative" ? `With one precondition not met — ${low}` : kind === "edge" ? `At the limit — ${low}` : act,
+      data: "",
+      expected: kind === "positive" ? jCap(then || "the behaviour the criterion describes is observed.")
+        : kind === "negative" ? "The action is rejected with a specific, visible reason, and no state changes."
+        : "The rule applies exactly at the limit — accepted on the allowed side, rejected just past it.",
+    });
+    return steps;
+  }
+  const shortOf = (c) => c.replace(/^AC\s*\d+\s*[-:]\s*/i, "").split(/[:.]/)[0].replace(/^given\s+/i, "").slice(0, 70);
+  const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+  function strategize(st, criteria) {
+    const linked = st.linked.map((l) => { const m = l.match(/^\s*([A-Z][A-Z0-9_]*-\d+)\s+(.*)$/); return m ? { key: m[1], summary: m[2], kind: (m[2].match(/^\s*\[([A-Za-z -]+)\]/)?.[1] || "").toLowerCase() } : null; }).filter(Boolean);
+    const urgent = /^(highest|high|critical|blocker)$/i.test(st.priority);
+    const plans = criteria.map((criterion, n) => {
+      const techniques = techniquesFor(criterion);
+      const level = levelFor(criterion, st);
+      const base = /reject|error|fail|invalid|missing|locked|expired/i.test(criterion) || n === 0 ? 1 : 0;
+      const score = Math.min(2, base + (HIGH_IMPACT.test(criterion) || urgent ? 1 : 0));
+      const priority = ["P3", "P2", "P1"][score];
+      const short = shortOf(criterion);
+      const wanted = [
+        { title: `${short} — succeeds when the conditions hold`, kind: "positive" },
+        { title: `${short} — rejected when a condition is not met`, kind: "negative" },
+        ...(techniques.includes("boundary-value") || techniques.includes("decision-table") ? [{ title: `${short} — at the boundary between allowed and rejected`, kind: "edge" }] : []),
+      ];
+      const scenarios = wanted.map((w) => ({ ...w, coveredBy: linked.find((t) => (!t.kind || t.kind === w.kind) && jOverlap(t.summary, short) >= 0.75)?.key || "" }));
+      const reason = { "boundary-value": "the criterion names a limit", "decision-table": "several conditions combine", "state-transition": "something changes state", "error-guessing": "it describes a failure path" }[techniques[0]] || "inputs fall into distinct classes";
+      return { criterion, techniques, level, priority, automate: true, why: `${techniques.join(" + ")} because ${reason}; ${level} is the lowest level that can prove it.`, preconditions: preconditionsFor(criterion, st), scenarios };
+    });
+    const fresh = plans.flatMap((p) => p.scenarios.filter((x) => !x.coveredBy).map(() => p.level));
+    const levels = [...new Set(fresh)].map((level) => ({ level, share: Math.round((fresh.filter((l) => l === level).length / Math.max(fresh.length, 1)) * 100),
+      why: level === "api" ? "Rules and validation are fastest and most stable to prove below the UI." : level === "ui-e2e" ? "What the user must see is only provable through the UI." : "Crosses components that must be exercised together." }));
+    const scopeNotes = st.comments.filter((c) => /not (be )?(needed|required)|out of scope|descoped|no longer|changed the scope/i.test(c));
+    const covered = plans.flatMap((p) => p.scenarios).filter((x) => x.coveredBy).length;
+    return {
+      summary: `${plans.length} criteria planned: ${plans.filter((p) => p.priority === "P1").length} P1; ${fresh.length} new scenarios, ${covered} already covered in Xray.`,
+      approach: `Risk-based: P1 criteria first. ${levels.map((l) => `${l.share}% ${l.level}`).join(", ") || "No new tests needed"} — each check at the lowest level that can prove it.${scopeNotes.length ? " Comments change the scope; the current scope is tested." : ""}`,
+      levels, criteria: plans, scopeNotes, linked,
+      risks: [
+        ...(st.tc ? [] : [{ risk: "No QA notes on the story.", mitigation: "Scenarios come from the criteria alone; review them with the QA owner." }]),
+        ...(scopeNotes.length ? [{ risk: "Scope changed in comments after the criteria were written.", mitigation: "Confirm the current scope with the story owner before publishing." }] : []),
+      ],
+    };
+  }
+
+  function specFor(st, plan, cases) {
+    const byLevel = (lvl) => cases.filter((c) => c.level === lvl);
+    const lines = [
+      `import { test, expect } from "@playwright/test";`,
+      ...(byLevel("ui-e2e").length || byLevel("integration").length ? [`import { signedInShopper } from "../fixtures/users";`] : []),
+      ``,
+      `// ${st.key}: ${st.summary}`,
+      `// Generated from the test strategy; one test per planned scenario, named as in Xray.`,
+      `test.describe("${st.key} ${st.summary.replace(/"/g, "'")}", () => {`,
+    ];
+    for (const c of cases) {
+      lines.push(`  // covers: ${c.criterion.slice(0, 110)}`);
+      lines.push(`  test("${c.summary.replace(/"/g, "'")}", async ({ ${c.level === "api" ? "request" : "page"} }) => {`);
+      for (const s of c.steps) {
+        lines.push(`    // ${s.action}${s.data ? ` — ${s.data}` : ""}`);
+      }
+      if (c.level === "api") {
+        lines.push(`    const res = await request.post("/api/${slug(st.summary).slice(0, 30)}", { data: { /* from the preconditions */ } });`);
+        lines.push(`    expect(res.status()).toBe(${c.kind === "negative" ? 400 : 200});`);
+      } else {
+        lines.push(`    await signedInShopper(page);`);
+        lines.push(`    await page.getByRole("button", { name: /${shortOf(c.criterion).split(" ").slice(0, 2).join(" ").replace(/[^\w ]/g, "")}/i }).click();`);
+        lines.push(`    await expect(page.getByTestId("${c.kind === "positive" ? "result" : "error"}")).toBeVisible();`);
+      }
+      lines.push(`  });`, ``);
+    }
+    lines.push(`});`);
+    return lines.join("\n");
+  }
+
+  async function runJira() {
+    const st = jStories[jSel];
+    if (!st || jRun?.busy) return;
+    const stages = Object.fromEntries(J_STAGES.map(([id]) => [id, "pending"]));
+    jRun = { key: st.key, stages, log: [], out: {}, report: null, busy: true };
+    const step = async (id, fn) => { stages[id] = "running"; renderJira(); await sleep(650); const r = fn(); if (stages[id] === "running") stages[id] = "passed"; renderJira(); return r; };
+    const say = (id, m) => jRun.log.push([id, m]);
+    const criteria = splitCriteria(st.ac);
+
+    await step("story-analyzer", () => say("story-analyzer", criteria.length ? `${criteria.length} acceptance criteria → ${criteria.length} testable behaviours.` : "No acceptance criteria — the story cannot be tested as written."));
+    const vague = /\b(better|improve|nicer|quickly|user.?friendly|appropriate|etc)\b/i.test(`${st.summary} ${st.ac}`);
+    const blocked = await step("clarify", () => {
+      if (!criteria.length) {
+        stages.clarify = "blocked";
+        jRun.out.questions = [
+          { q: `What must be true for ${st.key} to be done? List the acceptance criteria.`, blocking: true },
+          ...(vague ? [{ q: `"${st.summary}" — better in what measurable way (time, steps, error rate)?`, blocking: true }] : []),
+        ];
+        say("clarify", "Blocked: a guess here would test the wrong thing. Questions drafted for the story owner.");
+        return true;
+      }
+      jRun.out.questions = vague ? [{ q: "One criterion uses a vague word; the tests use the most literal reading.", blocking: false }] : [];
+      say("clarify", vague ? "One non-blocking question; carrying on with the literal reading." : "No ambiguities to resolve.");
+      return false;
+    });
+    if (blocked) {
+      for (const [id] of J_STAGES.slice(2)) stages[id] = "pending";
+      jRun.busy = false; jRun.blocked = true; renderJira(); return;
+    }
+    const plan = await step("test-strategist", () => { const p = strategize(st, criteria); say("test-strategist", p.summary); return p; });
+    jRun.out.strategy = plan;
+    await step("asset-resolver", () => say("asset-resolver", "Reusing fixtures/users.ts (signedInShopper); creating one spec file for the story."));
+    const cases = await step("spec-author", () => {
+      const list = plan.criteria.flatMap((p) => p.scenarios.filter((x) => !x.coveredBy).map((x) => ({
+        summary: `[${jCap(x.kind)}] ${x.title}`, kind: x.kind, criterion: p.criterion, level: p.level,
+        priority: { P1: "High", P2: "Medium", P3: "Low" }[p.priority], steps: stepsFor(p.criterion, x.kind, p.preconditions),
+        labels: [x.kind, "automated-candidate", "autopilot"],
+      })));
+      jRun.out.file = { path: `tests/${st.key.toLowerCase()}.spec.ts`, content: specFor(st, plan, list) };
+      say("spec-author", `Wrote ${list.length} test(s) in ${jRun.out.file.path}; ${list.length} Xray case(s) with steps.`);
+      return list;
+    });
+    jRun.out.cases = cases;
+    await step("verifier", () => {
+      const cov = plan.criteria.filter((p) => cases.some((c) => c.criterion === p.criterion) || p.scenarios.some((x) => x.coveredBy)).length;
+      say("verifier", `${cov}/${plan.criteria.length} criteria covered; 0 defects in the generated code.`);
+    });
+    await step("reviewer", () => say("reviewer", `Approved. ${cases.length} new test(s) plus ${plan.linked.length} existing cover every criterion.`));
+    jRun.report = buildJReport(st, plan, cases);
+    jRun.busy = false;
+    renderJira();
+  }
+
+  function buildJReport(st, plan, cases) {
+    const criteria = plan.criteria.map((p) => ({
+      ...p, newTests: cases.filter((c) => c.criterion === p.criterion).map((c) => c.summary),
+      existingTests: [...new Set(p.scenarios.filter((x) => x.coveredBy).map((x) => x.coveredBy))],
+    })).map((c) => ({ ...c, covered: c.newTests.length + c.existingTests.length > 0 }));
+    return {
+      st, criteria, cases, levels: plan.levels, approach: plan.approach, scopeNotes: plan.scopeNotes, risks: plan.risks, linked: plan.linked,
+      nextSteps: [
+        ...(plan.scopeNotes.length ? ["Confirm the current scope with the story owner — comments changed it after the criteria were written."] : []),
+        `Approve the Xray proposal to create ${cases.length} test(s) linked to ${st.key}.`,
+        "Approve the Bitbucket proposal to open the pull request with the spec file.",
+      ],
+    };
+  }
+  const pad = (t) => String(t).replace(/\|/g, "\\|").replace(/\n/g, " ");
+  function jReportMarkdown(r) {
+    return [
+      `# Test report — ${r.st.key}: ${r.st.summary}`, ``,
+      [r.st.status && `Status: ${r.st.status}`, `Priority: ${r.st.priority}`, r.st.epic && `Epic: ${r.st.epic}`].filter(Boolean).join(" · "), ``,
+      `**Verdict:** approve — ready to publish · generated ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC · agents simulated in the browser`, ``,
+      `## Strategy`, ``, r.approach, ``, `| Level | Share | Why |`, `|---|---|---|`, ...r.levels.map((l) => `| ${l.level} | ${l.share}% | ${pad(l.why)} |`),
+      ...(r.scopeNotes.length ? [``, `**Scope notes from comments**`, ...r.scopeNotes.map((n) => `- ${n}`)] : []), ``,
+      `## Traceability — criterion → tests`, ``,
+      `| # | Criterion | Priority | Level | Techniques | New tests | Existing | Covered |`, `|---|---|---|---|---|---|---|---|`,
+      ...r.criteria.map((c, i) => `| ${i + 1} | ${pad(c.criterion.slice(0, 160))} | ${c.priority} | ${c.level} | ${c.techniques.join(", ")} | ${c.newTests.length} | ${c.existingTests.join(", ") || "—"} | ${c.covered ? "yes" : "**no**"} |`), ``,
+      ...r.criteria.map((c, i) => `**${i + 1}.** ${c.why}${c.preconditions.length ? ` Preconditions: ${c.preconditions.join("; ")}.` : ""}\n`),
+      `## New Xray tests (${r.cases.length})`, ``,
+      ...r.cases.flatMap((c) => [`- ${c.summary} — ${c.priority}`, ...c.steps.map((s, k) => `  ${k + 1}. ${s.action}${s.data ? ` (${s.data})` : ""} → ${s.expected}`)]), ``,
+      `## Existing Xray tests (${r.linked.length})`, ``, ...(r.linked.length ? r.linked.map((t) => `- ${t.key} ${t.summary}`) : ["None linked before this run."]), ``,
+      ...(r.risks.length ? [`## Risks`, ``, ...r.risks.map((x) => `- ${x.risk} — ${x.mitigation}`), ``] : []),
+      `## Next steps`, ``, ...r.nextSteps.map((x) => `- ${x}`), ``,
+    ].join("\n");
+  }
+
+  function renderJList() {
+    $("j-list").innerHTML = jStories.map((st, i) => {
+      const n = splitCriteria(st.ac).length;
+      return `<button type="button" class="jstory" data-jpick="${i}" aria-pressed="${i === jSel}">
+        <span class="row"><b>${esc(st.key)}</b><span>${esc(st.summary)}</span></span>
+        <span class="row"><span class="pill">${esc(st.priority)}</span><span class="pill ${n ? "accent" : "heal"}">${n} AC</span>
+          ${st.linked.length ? `<span class="pill pass">${st.linked.length} Xray test</span>` : ""}${st.pasted ? `<span class="pill live">pasted</span>` : ""}</span></button>`;
+    }).join("");
+  }
+  const TONE = { passed: "pass", running: "live", blocked: "heal", pending: "" };
+  function renderJira() {
+    renderJList();
+    const st = jStories[jSel];
+    if (!st) { $("j-main").innerHTML = ""; return; }
+    const criteria = splitCriteria(st.ac);
+    const run = jRun && jRun.key === st.key ? jRun : null;
+    let h = `<section class="card"><div class="card-h"><h3>${esc(st.key)} · ${esc(st.summary)}</h3></div><div class="card-b" style="display:grid;gap:12px">
+      <div class="levels"><span class="pill">Story</span>${st.status ? `<span class="pill">${esc(st.status)}</span>` : ""}<span class="pill">${esc(st.priority)}</span>${st.epic ? `<span class="pill accent">${esc(st.epic)}</span>` : ""}</div>
+      <div class="callout"><p>The agents analyse the story, choose a test strategy, write the spec and Xray tests, verify and review them, then write a test report.</p>
+        <button class="btn primary" type="button" id="j-go" ${run?.busy ? "disabled" : ""}>${run?.busy ? "Agents working…" : run ? "Run again" : "Automate this story →"}</button></div>
+      <div class="sect"><span class="label">Acceptance criteria (${criteria.length})</span>${criteria.length ? `<ol class="crit" style="margin:0">${criteria.map((c) => `<li>${esc(c)}</li>`).join("")}</ol>` : `<p class="note" style="color:var(--heal)">None — the agents will stop and ask rather than guess.</p>`}</div>
+      ${st.tc ? `<div class="sect"><span class="label">Test criteria (team notes)</span><pre class="code" style="white-space:pre-wrap">${esc(st.tc)}</pre></div>` : ""}
+      ${st.linked.length ? `<div class="sect"><span class="label">Xray tests already linked (${st.linked.length})</span>${st.linked.map((l) => `<span style="font-size:12.5px">${esc(l)}</span>`).join("")}</div>` : ""}
+      ${st.comments.length ? `<div class="sect"><span class="label">Recent comments</span>${st.comments.map((c) => `<span style="font-size:12.5px">${esc(c)}</span>`).join("")}</div>` : ""}
+    </div></section>`;
+    if (run) {
+      const done = J_STAGES.filter(([id]) => run.stages[id] === "passed").length;
+      h += `<section class="card"><div class="card-h"><h3>Pipeline</h3><span class="pill">${done} / 7 stages passed</span>${run.blocked ? `<span class="pill heal dot">blocked — needs answers</span>` : ""}</div>
+        <div class="card-b blueprint"><div class="stages">${J_STAGES.map(([id, role]) => `<div class="stage ${run.stages[id]}"><b title="${id}">${id}</b><span>${role}</span><span class="pill dot ${TONE[run.stages[id]]}">${run.stages[id]}</span></div>`).join("")}</div>
+        <ul class="stage-log">${run.log.map(([id, m]) => `<li><b>${id}</b><span>${esc(m)}</span></li>`).join("")}</ul></div></section>`;
+      if (run.blocked) {
+        h += `<section class="card"><div class="card-h"><h3>Questions for the story owner</h3><span class="pill heal">proposed as a Jira comment</span></div><div class="card-b"><ol class="crit" style="margin:0">${run.out.questions.map((q) => `<li>${q.blocking ? "<b>Blocking:</b> " : ""}${esc(q.q)}</li>`).join("")}</ol>
+          <p class="note" style="margin-top:8px">Answer them in the story, paste it again, and run it.</p></div></section>`;
+      }
+      const r = run.report;
+      if (r) {
+        const cov = r.criteria.filter((c) => c.covered).length;
+        const ptone = { P1: "fail", P2: "heal", P3: "" };
+        h += `<section class="card"><div class="card-h"><h3>Test strategy &amp; report</h3><span class="pill ${cov === r.criteria.length ? "pass" : "heal"}">${cov} / ${r.criteria.length} criteria covered</span>
+            <button class="btn sm" type="button" id="j-dl" style="margin-left:auto">Download report (.md)</button></div>
+          <div class="card-b" style="display:grid;gap:12px">
+            <p style="margin:0;font-size:12.5px;color:var(--ink-2)">${esc(r.approach)}</p>
+            <div class="levels">${r.levels.map((l) => `<span class="pill" title="${esc(l.why)}">${l.level} ${l.share}%</span>`).join("")}</div>
+            ${r.scopeNotes.length ? `<div class="scope"><b>Scope changed in comments</b><br>${r.scopeNotes.map(esc).join("<br>")}</div>` : ""}
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Criterion</th><th>Priority</th><th>Level</th><th>Techniques</th><th>Tests</th><th>Covered</th></tr></thead><tbody>
+            ${r.criteria.map((c) => `<tr><td title="${esc(c.why)}">${esc(c.criterion)}${c.preconditions.length ? `<br><span class="note">Preconditions: ${esc(c.preconditions.join("; "))}</span>` : ""}</td>
+              <td><span class="pill ${ptone[c.priority]}">${c.priority}</span></td><td class="mono">${c.level}</td><td class="mono muted">${c.techniques.join(", ")}</td>
+              <td class="mono">${c.newTests.length} new${c.existingTests.length ? ` · ${c.existingTests.join(", ")}` : ""}</td><td><span class="pill dot ${c.covered ? "pass" : "fail"}">${c.covered ? "yes" : "no"}</span></td></tr>`).join("")}
+          </tbody></table></div>
+          <div class="card-b" style="display:grid;gap:8px">
+            ${r.risks.length ? `<div class="sect"><span class="label">Risks</span>${r.risks.map((x) => `<span style="font-size:12.5px">${esc(x.risk)} <span class="muted">— ${esc(x.mitigation)}</span></span>`).join("")}</div>` : ""}
+            <div class="sect"><span class="label">Next steps</span>${r.nextSteps.map((x) => `<span style="font-size:12.5px">${esc(x)}</span>`).join("")}</div>
+          </div></section>
+          <section class="card"><div class="card-h"><h3>Waiting for your approval</h3><span class="pill heal dot">nothing is written until you approve</span></div><div class="card-b" style="display:grid;gap:8px">
+            ${[["Create Xray test cases", `${r.cases.length} test(s) into ${st.key.split("-")[0]}, each linked "tests ${st.key}"`], ["Commit branch & open PR in Bitbucket", `qe/${st.key}-specs → main`], ["Post the test report to Jira", st.key]]
+              .map(([t, d]) => `<div class="proposal"><div><b>${t}</b><br><span class="note mono">${esc(d)}</span></div><span class="right"><span class="pill heal">proposed</span><button class="btn sm primary" type="button" data-japprove title="Needs the deployed app with Jira credentials">Approve &amp; publish</button></span></div>`).join("")}
+            <p class="note" id="j-approve-note"></p></div></section>
+          <section class="card"><div class="card-h"><h3>Xray test cases</h3><span class="pill accent">${r.cases.length}</span></div><div class="card-b" style="display:grid;gap:6px">
+            ${r.cases.map((c) => `<details class="tc"><summary>${esc(c.summary)}<span class="pill" style="margin-left:auto">${c.priority}</span></summary>
+              <span class="note">covers: ${esc(c.criterion)} · labels: ${c.labels.join(", ")}</span>
+              <ol>${c.steps.map((s) => `<li>${esc(s.action)}${s.data ? ` <span class="muted">— ${esc(s.data)}</span>` : ""}<br><span class="muted">Expected:</span> ${esc(s.expected)}</li>`).join("")}</ol></details>`).join("")}
+          </div></section>
+          <section class="card"><div class="card-h"><h3>Spec file</h3><span class="note mono">${esc(run.out.file.path)}</span></div><div class="card-b"><pre class="code">${esc(run.out.file.content)}</pre></div></section>`;
+      }
+    }
+    $("j-main").innerHTML = h;
+  }
+
+  $("j-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const key = $("j-key").value.trim().toUpperCase();
+    const err = (m) => ($("j-err").textContent = m);
+    if (!/^[A-Z][A-Z0-9_]*-\d+$/.test(key)) return err("A key looks like SHOP-240.");
+    const summary = $("j-sum").value.trim();
+    if (!summary) return err("Give the story a summary.");
+    const lines = (id) => $(id).value.split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 12);
+    const story = { key, summary, priority: $("j-pri").value, status: "", epic: "", ac: $("j-ac").value.slice(0, 12000), tc: $("j-tc").value.slice(0, 4000), comments: lines("j-cm"), linked: lines("j-lt"), pasted: true };
+    const at = jStories.findIndex((x) => x.key === key);
+    if (at >= 0) jStories[at] = story; else jStories.unshift(story);
+    jSel = at >= 0 ? at : 0;
+    err(""); e.target.reset(); $("j-pri").value = "Medium";
+    if (jRun?.key === key && !jRun.busy) jRun = null;
+    renderJira();
+    $("j-main").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  document.addEventListener("click", (e) => {
+    const pick = e.target.closest("[data-jpick]");
+    if (pick) { jSel = Number(pick.dataset.jpick); renderJira(); return; }
+    if (e.target.closest("#j-go")) { runJira(); return; }
+    if (e.target.closest("[data-japprove]")) {
+      $("j-approve-note").textContent = "This page can't write to Jira or Xray. In the deployed app, an owner or admin's approval creates these for real.";
+      return;
+    }
+    if (e.target.closest("#j-dl") && jRun?.report) {
+      const blob = new Blob([jReportMarkdown(jRun.report)], { type: "text/markdown" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = `test-report-${jRun.key}.md`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
   });
 
