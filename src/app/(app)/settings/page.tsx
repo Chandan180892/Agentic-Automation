@@ -72,6 +72,10 @@ export default async function SettingsPage() {
                     <Label>Test framework</Label>
                     <input name="testFramework" defaultValue={workspace.testFramework} className={field} />
                   </label>
+                  <label className="grid gap-1.5">
+                    <Label>Jira link type for tests</Label>
+                    <input name="testLinkType" defaultValue={workspace.testLinkType} placeholder="Test" className={field} />
+                  </label>
                 </div>
                 <Button type="submit" variant="primary" className="justify-center">Save</Button>
                 <Sub>

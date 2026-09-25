@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+export const ExistingTest = z.object({
+  key: z.string(),
+  summary: z.string(),
+  kind: z.string().default("").describe("positive | negative | edge, from the team's summary prefix"),
+});
+
 export const StoryContext = z.object({
   key: z.string(),
   summary: z.string(),
@@ -7,6 +13,68 @@ export const StoryContext = z.object({
   acceptanceCriteria: z.array(z.string()).default([]),
   issueType: z.string().default("Story"),
   labels: z.array(z.string()).default([]),
+  /** The Jira priority (Highest … Lowest); raises the test priority of risky criteria. */
+  priority: z.string().default(""),
+  /** The team's own manual test notes on the story (e.g. Jira "Test Criteria"), verbatim. */
+  testCriteria: z.string().default(""),
+  /** Recent comments, oldest first. Later comments can change the scope. */
+  comments: z.array(z.string()).default([]),
+  parent: z.string().default("").describe("Parent epic, as 'KEY: summary'"),
+  components: z.array(z.string()).default([]),
+  /** Tests already linked to the story in Xray; extend them, never duplicate them. */
+  existingTests: z.array(ExistingTest).default([]),
+});
+
+// ----------------------------------------------------------- test-strategist
+export const TECHNIQUES = [
+  "equivalence-partitioning",
+  "boundary-value",
+  "decision-table",
+  "state-transition",
+  "pairwise",
+  "error-guessing",
+  "use-case",
+  "exploratory",
+] as const;
+export const LEVELS = ["unit", "api", "integration", "ui-e2e", "manual"] as const;
+
+export const TestStrategistIn = z.object({
+  story: StoryContext,
+  behaviours: z.array(
+    z.object({ name: z.string(), criterion: z.string(), kind: z.string(), risk: z.enum(["low", "medium", "high"]) })
+  ),
+  framework: z.string().default("playwright"),
+});
+
+export const TestStrategistOut = z.object({
+  summary: z.string(),
+  approach: z.string().describe("The overall strategy in two or three sentences: levels, emphasis, what is deliberately not tested"),
+  levels: z.array(
+    z.object({ level: z.enum(LEVELS), share: z.number().describe("Percent of the new tests at this level"), why: z.string() })
+  ),
+  criteria: z.array(
+    z.object({
+      criterion: z.string().describe("Exactly as given"),
+      techniques: z.array(z.enum(TECHNIQUES)).min(1),
+      level: z.enum(LEVELS),
+      priority: z.enum(["P1", "P2", "P3"]),
+      risk: z.enum(["low", "medium", "high"]),
+      automate: z.boolean(),
+      why: z.string().describe("Why these techniques, this level and this priority"),
+      preconditions: z.array(z.string()).default([]),
+      testData: z.array(z.string()).default([]),
+      scenarios: z.array(
+        z.object({
+          title: z.string(),
+          kind: z.enum(["positive", "negative", "edge"]),
+          coveredBy: z.string().default("").describe("Key of an existing test that already covers it, or empty"),
+        })
+      ),
+    })
+  ),
+  risks: z.array(z.object({ risk: z.string(), mitigation: z.string() })).default([]),
+  scopeNotes: z.array(z.string()).default([]).describe("Scope changes or conflicts found in comments"),
+  nonFunctional: z.array(z.string()).default([]),
 });
 
 // ---------------------------------------------------------- story-analyzer
@@ -96,6 +164,20 @@ export const SpecAuthorIn = z.object({
   create: z.array(z.object({ path: z.string(), kind: z.string() })),
   conventions: z.object({ specDir: z.string(), fixtureDir: z.string(), naming: z.string() }),
   framework: z.string().default("playwright"),
+  /** test-strategist's plan: which scenarios to write, at which level, with what setup. */
+  strategy: z
+    .array(
+      z.object({
+        criterion: z.string(),
+        level: z.string(),
+        priority: z.enum(["P1", "P2", "P3"]),
+        automate: z.boolean(),
+        preconditions: z.array(z.string()).default([]),
+        testData: z.array(z.string()).default([]),
+        scenarios: z.array(z.object({ title: z.string(), kind: z.enum(["positive", "negative", "edge"]), coveredBy: z.string().default("") })),
+      })
+    )
+    .default([]),
   /** Present only on a re-attempt, carrying what the verifier rejected. */
   revision: z
     .object({

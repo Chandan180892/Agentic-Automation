@@ -68,16 +68,20 @@ mutation CreateTest($jira: JSON!, $testType: UpdateTestTypeInput!, $steps: [Crea
   }
 }`;
 
-const LINK_TO_STORY = `
-mutation AddTestsToPrecondition($issueId: String!, $testIssueIds: [String]!) {
-  addTestsToPrecondition(issueId: $issueId, testIssueIds: $testIssueIds) { addedTests warning }
-}`;
-
 export interface XrayCreated {
   key: string;
   issueId: string;
   summary: string;
   warnings: string[];
+  /** Whether the "tests" link to the story was created. */
+  linked: boolean;
+}
+
+/** Checks the Xray API credentials by authenticating. */
+export async function xrayAuthOk(): Promise<boolean> {
+  cached = null;
+  await authenticate();
+  return true;
 }
 
 /** Creates one Xray test. Manual tests carry steps; Cucumber tests carry gherkin. */
@@ -108,17 +112,30 @@ export async function createTest(input: XrayTestInput): Promise<XrayCreated> {
     issueId: result.createTest.test.issueId,
     summary: input.summary,
     warnings: result.createTest.warnings ?? [],
+    linked: false,
   };
 }
 
-export async function createTests(inputs: XrayTestInput[]): Promise<XrayCreated[]> {
+/**
+ * Creates the tests, then links each one to its story with the site's test link type
+ * ("<test> tests <story>"), which is how Xray counts requirement coverage.
+ */
+export async function createTests(inputs: XrayTestInput[], linkType = "Test"): Promise<XrayCreated[]> {
+  const { linkOutward } = await import("./jira");
   const created: XrayCreated[] = [];
   for (const input of inputs) {
     // Sequential on purpose: Xray Cloud rate-limits bursts, and a partial failure should
     // leave the tests already created intact rather than in an unknown state.
-    created.push(await createTest(input));
+    const test = await createTest(input);
+    if (input.storyKey) {
+      try {
+        await linkOutward(test.key, input.storyKey, linkType);
+        test.linked = true;
+      } catch (err) {
+        test.warnings.push(`could not link to ${input.storyKey}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    created.push(test);
   }
   return created;
 }
-
-export { LINK_TO_STORY };

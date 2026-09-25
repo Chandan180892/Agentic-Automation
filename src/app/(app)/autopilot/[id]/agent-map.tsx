@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import type { CycleOutput } from "@/lib/agents/autopilot";
 
-const SUB_AGENTS = ["story-analyzer", "clarify", "asset-resolver", "spec-author", "verifier", "reviewer"] as const;
+const SUB_AGENTS = ["story-analyzer", "clarify", "test-strategist", "asset-resolver", "spec-author", "verifier", "reviewer"] as const;
 
 const NODES = [
   { phase: "recall", name: "memory", role: "recall" },

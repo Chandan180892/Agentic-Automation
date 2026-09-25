@@ -58,7 +58,7 @@ export default async function AgentsPage() {
           <Sub className="mt-1.5">
             Each has one job, a typed input, and a typed output, produced through a forced tool call
             so a malformed result never reaches your database. qe-pipeline is itself an orchestrator:
-            it runs the six sub-agents below.
+            it runs the seven sub-agents below.
           </Sub>
         </div>
 

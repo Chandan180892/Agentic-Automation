@@ -120,6 +120,20 @@ worker processes' logs for `worker started`.
 **"Only a workspace owner or admin can …"** Publishing, integrations and lesson decisions need the
 owner or admin role (`Membership.role`).
 
+**The Jira page shows a red Jira pill.** `JIRA_BASE_URL`, `JIRA_EMAIL` or `JIRA_API_TOKEN` is wrong,
+or the token was revoked; the pill shows Jira's error. An amber Xray pill is the same for
+`XRAY_CLIENT_ID`/`XRAY_CLIENT_SECRET` (and `XRAY_BASE_URL` for non-US regions).
+
+**A story shows no acceptance criteria.** Fields are matched by name ("Acceptance Criteria",
+"Test Criteria", "Story Points", "Sprint"). If the site renamed a field, rename it back or put the
+criteria in an "Acceptance Criteria" section of the description. Field ids are cached for ten
+minutes per process.
+
+**Xray tests were created but not linked to the story.** The run log says `could not link`. The
+link type in Settings (default `Test`) must exist on the site (the Jira page checks it) and the
+Jira account needs "Link issues" permission. Link by hand or fix and re-run; a retry only creates
+tests that are still missing.
+
 **Publishing failed.** The proposal is marked `failed` with the Atlassian error and can be retried
 from the same button. A publish is claimed atomically, so a double click never writes twice.
 

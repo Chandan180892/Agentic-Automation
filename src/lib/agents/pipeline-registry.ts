@@ -5,6 +5,7 @@ import { hasLesson, type Memory } from "./types";
 export type SubAgentId =
   | "story-analyzer"
   | "clarify"
+  | "test-strategist"
   | "asset-resolver"
   | "spec-author"
   | "verifier"
@@ -44,6 +45,120 @@ Nothing you produce is written to Jira, Xray or Bitbucket until a human approves
 
 const slug = (key: string) => key.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
+type Story = z.infer<typeof P.StoryContext>;
+
+/** Everything the agents know about the story, laid out once for every prompt. */
+export function storyText(story: Story, opts: { criteria?: boolean } = {}) {
+  return [
+    `Issue ${story.key} (${story.issueType}${story.priority ? `, priority ${story.priority}` : ""}): ${story.summary}`,
+    story.parent ? `Epic: ${story.parent}` : "",
+    story.labels.length ? `Labels: ${story.labels.join(", ")}` : "",
+    story.components.length ? `Components: ${story.components.join(", ")}` : "",
+    ``,
+    `Description:`,
+    story.description || "(empty)",
+    ...(opts.criteria === false
+      ? []
+      : [
+          ``,
+          `Acceptance criteria:`,
+          ...(story.acceptanceCriteria.length
+            ? story.acceptanceCriteria.map((c, n) => `${n + 1}. ${c}`)
+            : ["NONE — the story has no acceptance criteria."]),
+        ]),
+    ...(story.testCriteria ? [``, `Team's test notes (Test Criteria), verbatim:`, story.testCriteria.slice(0, 6000)] : []),
+    ...(story.comments.length
+      ? [``, `Comments, oldest first — later ones can change the scope:`, ...story.comments.map((c) => `- ${c.slice(0, 800)}`)]
+      : []),
+    ...(story.existingTests.length
+      ? [``, `Tests already linked in Xray (extend, never duplicate):`, ...story.existingTests.map((t) => `- ${t.key} ${t.summary}`)]
+      : []),
+  ]
+    .filter((l, i, a) => l !== "" || a[i - 1] !== "")
+    .join("\n");
+}
+
+// ------------------------------------------------ manual steps from a criterion --
+
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+type Kind = "positive" | "negative" | "edge";
+
+/** Turns a Given/When/Then criterion into Xray steps, with setup first. */
+export function stepsFor(criterion: string, kind: Kind, preconditions: string[] = []) {
+  const body = criterion.replace(/^[^:]{0,80}:\s*/, "");
+  const given = body.match(/given (.*?)(?= when |$)/i)?.[1]?.trim();
+  const when = body.match(/when (.*?)(?= then |$)/i)?.[1]?.trim();
+  const then = body.match(/then (.*)$/i)?.[1]?.trim();
+  const setup = preconditions.length ? preconditions.join("; ") : given ?? "";
+  const steps: { action: string; data: string; expected: string }[] = [];
+  if (setup) steps.push({ action: "Set up the preconditions", data: setup, expected: "The system is in the stated starting state." });
+  const act = when ? cap(when.replace(/[.;]+$/, "")) : `Exercise: ${body.slice(0, 120)}`;
+  steps.push({
+    action: kind === "negative" ? `With one precondition not met — ${act.charAt(0).toLowerCase()}${act.slice(1)}` : kind === "edge" ? `At the limit — ${act.charAt(0).toLowerCase()}${act.slice(1)}` : act,
+    data: "",
+    expected:
+      kind === "positive"
+        ? cap(then ?? "the behaviour the criterion describes is observed.")
+        : kind === "negative"
+          ? "The action is rejected with a specific, visible reason, and no state changes."
+          : "The rule applies exactly at the limit — accepted on the allowed side, rejected just past it.",
+  });
+  return steps;
+}
+
+const PRIORITY = { P1: "High", P2: "Medium", P3: "Low" } as const;
+
+// ------------------------------------------------- strategist heuristics --
+// Used by the simulator; a live model applies the same rules from its system prompt.
+
+const words = (t: string) => new Set(t.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []);
+/** Share of the smaller text's words found in the other; summary prefixes like [Positive] are ignored. */
+function overlap(a: string, b: string) {
+  a = a.replace(/^\s*\[[^\]]*\]\s*/, "");
+  b = b.replace(/^\s*\[[^\]]*\]\s*/, "");
+  const A = words(a);
+  const B = words(b);
+  if (!A.size || !B.size) return 0;
+  let n = 0;
+  for (const w of A) if (B.has(w)) n++;
+  return n / Math.min(A.size, B.size);
+}
+
+const HIGH_IMPACT =
+  /\b(pay|payment|price|total|amount|charge|refund|discount|balance|invoice|order|password|login|sign.?in|permission|role|auth|token|secure|security|delete|remove|lose|loss|personal data|gdpr)\b/i;
+
+export function techniquesFor(criterion: string): (typeof P.TECHNIQUES)[number][] {
+  const c = criterion.toLowerCase();
+  const t: (typeof P.TECHNIQUES)[number][] = [];
+  if (/\d|at least|at most|more than|less than|over|under|within|limit|maximum|minimum|exceed/.test(c)) t.push("boundary-value");
+  if (/\b(true|false)\b|\band\/or\b|either|parameter|flag|setting|\bif\b.*\bthen\b|combination/.test(c) || (c.match(/\band\b/g) ?? []).length >= 3)
+    t.push("decision-table");
+  if (/status|state|remain|unregister|register|transition|lifecycle|becomes|moved to|allocated/.test(c)) t.push("state-transition");
+  if (/error|reject|fail|invalid|missing|not |no |without|denied|duplicate/.test(c)) t.push("error-guessing");
+  t.push("equivalence-partitioning");
+  return [...new Set(t)].slice(0, 3);
+}
+
+export function levelFor(criterion: string, story: Story): (typeof P.LEVELS)[number] {
+  const c = `${criterion} ${story.summary}`.toLowerCase();
+  if (/\b(api|endpoint|payload|request|response|callback|schema|json|http|status code|webhook|queue|message)\b/.test(c)) return "api";
+  if (/\b(screen|page|click|button|display|displayed|ui|navigate|form|modal|message is shown|error message)\b/.test(c)) return "ui-e2e";
+  if (/\b(job|batch|nightly|reconcil|sync|import|export|report)\b/.test(c)) return "integration";
+  return "integration";
+}
+
+function preconditionsFor(criterion: string, story: Story): string[] {
+  const out: string[] = [];
+  const given = criterion.match(/given (.*?)(?= when |$)/i)?.[1];
+  if (given) for (const part of given.split(/\s+and\s+/i)) if (part.trim()) out.push(part.trim().replace(/[.;,]+$/, ""));
+  for (const line of story.testCriteria.split("\n")) {
+    const l = line.replace(/^[\s*•-]+/, "").trim();
+    if (/^pre-?conditions?\s*:/i.test(l) && l.length < 200) out.push(l.replace(/^pre-?conditions?\s*:\s*/i, "").replace(/[.;,]+$/, ""));
+    else if (/before testing|ensure .* (set|configured)|set to (true|false)/i.test(l) && l.length < 200) out.push(l.replace(/\\/g, ""));
+  }
+  return [...new Set(out)].slice(0, 5);
+}
+
 function def<I extends z.ZodType, O extends z.ZodType>(d: SubAgentDef<I, O>) {
   return d;
 }
@@ -74,21 +189,14 @@ Method:
   produce different tests. Quote it exactly. Vagueness you can safely resolve is not an
   ambiguity; say nothing about it.
 - Mark an ambiguity blocking only when no honest spec can be written until it is answered.
-- Set testable false when the story describes no verifiable behaviour at all.`,
+- Set testable false when the story describes no verifiable behaviour at all.
+- The team's test notes and the comments are evidence too: a scenario in the test notes is a
+  behaviour, and a later comment that narrows or changes the scope wins over the description.`,
     prompt: (i) =>
       [
         `Framework: ${i.framework}`,
-        `Issue ${i.story.key} (${i.story.issueType}): ${i.story.summary}`,
-        i.story.labels.length ? `Labels: ${i.story.labels.join(", ")}` : "",
-        ``,
-        `Description:`,
-        i.story.description || "(empty)",
-        ``,
-        `Acceptance criteria:`,
-        ...(i.story.acceptanceCriteria.length
-          ? i.story.acceptanceCriteria.map((c, n) => `${n + 1}. ${c}`)
-          : ["NONE — the story has no acceptance criteria."]),
-      ].filter(Boolean).join("\n"),
+        storyText(i.story),
+      ].join("\n"),
     simulate: (i, memory) => {
       const criteria = i.story.acceptanceCriteria;
       // Untaught, the simulator reads only the first three criteria — the shortcut a rushed
@@ -177,13 +285,131 @@ Method:
   }),
 
   // ------------------------------------------------------------------ 3 --
+  "test-strategist": def({
+    id: "test-strategist",
+    name: "Test strategist",
+    role: "Chooses how to test",
+    description:
+      "Decides, per acceptance criterion, which design techniques to apply, at which test level, with what priority, setup and data — and what the tests already linked in Xray cover, so nothing is duplicated.",
+    order: 3,
+    input: P.TestStrategistIn,
+    output: P.TestStrategistOut,
+    tool: "submit_strategy",
+    toolDescription: "Return the test strategy for this story.",
+    maxTokens: 8000,
+    system: `${HOUSE}
+
+You are test-strategist, the third stage. You decide how this story is tested before anyone
+writes a test.
+
+Method:
+- Risk first. Rank each criterion by impact × likelihood of failure; P1 for high risk or
+  money, data loss, safety or compliance; P3 only for cosmetic or low-use paths.
+- Choose techniques per criterion, not per story:
+  boundary-value for limits and counts; equivalence-partitioning for input classes;
+  decision-table when two or more conditions (parameters, flags, roles) combine;
+  state-transition when something changes status (registered, allocated, closed);
+  pairwise when many independent options multiply; error-guessing for failure paths the
+  criteria imply but do not list; exploratory for what cannot be specified.
+- Push each check to the lowest level that can prove it (the test pyramid): api or
+  integration for rules, calculations and validation; ui-e2e only for what a user must see or
+  do; manual only for what cannot be automated sensibly, with the reason.
+- Preconditions and data are part of the test: name system parameters, configuration and
+  records each scenario needs, and keep setup idempotent.
+- Read the team's test notes as an oracle and reuse their scenarios. Read the comments:
+  a later comment that changes the scope wins over the description — record it in
+  scopeNotes and test the current scope.
+- For every scenario, check the tests already linked in Xray; if one already covers it, set
+  coveredBy to its key instead of proposing a duplicate.
+- Label every scenario positive, negative or edge — the team prefixes Xray test summaries
+  with [Positive], [Negative] and [Edge].
+- levels shares add up to 100 across the new (not yet covered) scenarios.`,
+    prompt: (i) =>
+      [
+        `Framework: ${i.framework}`,
+        storyText(i.story),
+        ``,
+        `Behaviours story-analyzer derived:`,
+        ...i.behaviours.map((b) => `- [${b.kind}, ${b.risk} risk] ${b.name}\n  from: ${b.criterion}`),
+      ].join("\n"),
+    simulate: (i) => {
+      const criteria = [...new Set(i.behaviours.map((b) => b.criterion))];
+      const plans = criteria.map((criterion) => {
+        const bs = i.behaviours.filter((b) => b.criterion === criterion);
+        const base = bs.some((b) => b.risk === "high") ? 2 : bs.some((b) => b.risk === "medium") ? 1 : 0;
+        // Money, security and data loss raise the impact; so does a story the team marked urgent.
+        const impact = HIGH_IMPACT.test(criterion) ? 1 : 0;
+        const urgent = /^(highest|high|critical|blocker|urgent)$/i.test(i.story.priority) ? 1 : 0;
+        const score = Math.min(2, base + Math.max(impact, urgent));
+        const risk = score === 2 ? "high" : score === 1 ? "medium" : "low";
+        const techniques = techniquesFor(criterion);
+        const level = levelFor(criterion, i.story);
+        const short = criterion.replace(/^AC\s*\d+\s*[-:]\s*/i, "").split(/[:.]/)[0].slice(0, 70);
+        const wanted: { title: string; kind: "positive" | "negative" | "edge" }[] = [
+          { title: `${short} — succeeds when the conditions hold`, kind: "positive" },
+          { title: `${short} — rejected when a condition is not met`, kind: "negative" },
+          ...(techniques.includes("boundary-value") || techniques.includes("decision-table")
+            ? [{ title: `${short} — at the boundary between allowed and rejected`, kind: "edge" as const }]
+            : []),
+        ];
+        const scenarios = wanted.map((w) => {
+          const hit = i.story.existingTests.find((t) => (!t.kind || t.kind === w.kind) && overlap(t.summary, short) >= 0.75);
+          return { ...w, coveredBy: hit?.key ?? "" };
+        });
+        return {
+          criterion,
+          techniques,
+          level,
+          priority: (risk === "high" ? "P1" : risk === "medium" ? "P2" : "P3") as "P1" | "P2" | "P3",
+          risk: risk as "low" | "medium" | "high",
+          automate: level !== "manual",
+          why: `${techniques.join(" + ")} because ${
+            techniques[0] === "boundary-value"
+              ? "the criterion names a limit"
+              : techniques[0] === "decision-table"
+                ? "several conditions combine"
+                : techniques[0] === "state-transition"
+                  ? "an item changes state"
+                  : techniques[0] === "error-guessing"
+                    ? "it describes a failure path"
+                    : "inputs fall into distinct classes"
+          }; ${level} is the lowest level that can prove it.`,
+          preconditions: preconditionsFor(criterion, i.story),
+          testData: [],
+          scenarios,
+        };
+      });
+      const fresh = plans.flatMap((p) => p.scenarios.filter((s) => !s.coveredBy).map(() => p.level));
+      const levels = [...new Set(fresh)].map((level) => ({
+        level,
+        share: Math.round((fresh.filter((l) => l === level).length / Math.max(fresh.length, 1)) * 100),
+        why: level === "api" ? "Rules and validation are fastest and most stable to prove below the UI." : level === "ui-e2e" ? "What the operator must see is only provable through the UI." : "Crosses components that must be exercised together.",
+      }));
+      const covered = plans.flatMap((p) => p.scenarios).filter((s) => s.coveredBy).length;
+      const scopeNotes = i.story.comments.filter((c) => /not (be )?(needed|required)|out of scope|descoped|no longer|changed the scope|updated (the )?(description|ac|test criteria)/i.test(c)).map((c) => c.slice(0, 300));
+      return {
+        summary: `${plans.length} criteria planned: ${plans.filter((p) => p.priority === "P1").length} P1; ${fresh.length} new scenarios, ${covered} already covered in Xray.`,
+        approach: `Risk-based: P1 criteria first. ${levels.map((l) => `${l.share}% ${l.level}`).join(", ") || "No new tests needed"} — each check at the lowest level that can prove it. ${scopeNotes.length ? "Comments change the scope; the current scope is tested." : ""}`.trim(),
+        levels,
+        criteria: plans,
+        risks: [
+          ...(i.story.testCriteria ? [] : [{ risk: "No team test notes on the story.", mitigation: "Scenarios derive from the criteria alone; review them with the QA owner." }]),
+          ...(scopeNotes.length ? [{ risk: "Scope changed in comments after the criteria were written.", mitigation: "Confirm the current scope with the story owner before publishing." }] : []),
+        ],
+        scopeNotes,
+        nonFunctional: [],
+      };
+    },
+  }),
+
+  // ------------------------------------------------------------------ 4 --
   "asset-resolver": def({
     id: "asset-resolver",
     name: "Asset resolver",
     role: "Reuses what the repo already has",
     description:
       "Reads the Bitbucket repository to find fixtures, page objects and helpers that already exist, so the pipeline extends the suite instead of duplicating it.",
-    order: 3,
+    order: 4,
     input: P.AssetResolverIn,
     output: P.AssetResolverOut,
     tool: "submit_asset_plan",
@@ -235,14 +461,14 @@ Method:
     },
   }),
 
-  // ------------------------------------------------------------------ 4 --
+  // ------------------------------------------------------------------ 5 --
   "spec-author": def({
     id: "spec-author",
     name: "Spec author",
     role: "Writes the specs and Xray cases",
     description:
       "Writes complete, runnable spec files against the repo's conventions, and the matching Xray test cases with real steps and expected results.",
-    order: 4,
+    order: 5,
     input: P.SpecAuthorIn,
     output: P.SpecAuthorOut,
     tool: "submit_specs",
@@ -250,9 +476,15 @@ Method:
     maxTokens: 12000,
     system: `${HOUSE}
 
-You are spec-author, the fourth stage.
+You are spec-author, the fifth stage.
 
 Method:
+- Follow the test strategy: write the scenarios it lists (skip any with coveredBy — an
+  existing Xray test already covers it), at its level (api scenarios call the API, ui-e2e ones
+  drive the UI), with its preconditions and data in setup, highest priority first.
+- Name each Xray test "[Positive] …", "[Negative] …" or "[Edge] …" after the scenario's kind,
+  and label it positive, negative or edge — the team's convention. Priority: P1 → High,
+  P2 → Medium, P3 → Low. The first step of a manual test establishes its preconditions.
 - Write only the files listed under create. Import from the reuse files rather than redefining
   what they already provide.
 - Every file is complete and runnable. No TODOs, no "...", no placeholder selectors.
@@ -281,6 +513,23 @@ file set again, not a diff.`,
         ``,
         `Behaviours:`,
         ...i.behaviours.map((b) => `- [${b.kind}] ${b.name}\n  covers: ${b.criterion}`),
+        ...(i.strategy.length
+          ? [
+              ``,
+              `Test strategy:`,
+              ...i.strategy.map(
+                (p) =>
+                  `- ${p.priority} ${p.level}${p.automate ? "" : " (manual)"} — ${p.criterion}${
+                    p.preconditions.length ? `\n  preconditions: ${p.preconditions.join("; ")}` : ""
+                  }${p.testData.length ? `\n  data: ${p.testData.join("; ")}` : ""}\n${p.scenarios
+                    .map((sc) => `  · [${sc.kind}] ${sc.title}${sc.coveredBy ? `  (covered by ${sc.coveredBy} — skip)` : ""}`)
+                    .join("\n")}`
+              ),
+            ]
+          : []),
+        ...(i.story.existingTests.length
+          ? [``, `Existing Xray tests (do not duplicate):`, ...i.story.existingTests.map((t) => `- ${t.key} ${t.summary}`)]
+          : []),
         ...(i.revision
           ? [
               ``,
@@ -343,9 +592,7 @@ ${behaviours
         criterion: c,
         labels: ["autopilot"],
         gherkin: "",
-        steps: [
-          { action: `Exercise: ${c.slice(0, 70)}`, data: "", expected: "The behaviour the criterion describes is observed." },
-        ],
+        steps: stepsFor(c, "positive"),
       }));
       return {
         summary: i.revision
@@ -355,32 +602,48 @@ ${behaviours
           { path: specPath, kind: "spec" as const, content: spec },
           { path: fixturePath, kind: "fixture" as const, content: fixture },
         ],
-        testCases: [...extra, ...behaviours.map((b) => ({
-          summary: b.name,
-          testType: "Manual" as const,
-          priority: "Medium" as const,
-          criterion: b.criterion,
-          labels: ["autopilot", "automated-candidate"],
-          gherkin: "",
-          steps: [
-            { action: `Navigate to the ${i.story.summary.toLowerCase()} screen`, data: `path: /${s}`, expected: "The screen loads with the form enabled." },
-            { action: "Submit the request", data: JSON.stringify({ id: `${s}-1`, amount: 1250 }), expected: "The request is accepted and a confirmation is shown." },
-            { action: "Submit the identical request again", data: "same payload", expected: "No second record is created; the original result is returned." },
-          ],
-        }))],
+        testCases: [
+          ...extra,
+          ...(i.strategy.length
+            ? i.strategy.flatMap((plan) =>
+                plan.scenarios
+                  .filter((sc) => !sc.coveredBy)
+                  .map((sc) => ({
+                    summary: `[${cap(sc.kind)}] ${sc.title}`,
+                    testType: "Manual" as const,
+                    priority: PRIORITY[plan.priority],
+                    criterion: plan.criterion,
+                    labels: [sc.kind, plan.automate ? "automated-candidate" : "manual", "autopilot"],
+                    gherkin: "",
+                    steps: stepsFor(plan.criterion, sc.kind, plan.preconditions),
+                  }))
+              )
+            : behaviours.map((b) => {
+                const kind: Kind = b.kind === "happy-path" ? "positive" : b.kind === "edge-case" ? "edge" : "negative";
+                return {
+                  summary: `[${cap(kind)}] ${b.name}`,
+                  testType: "Manual" as const,
+                  priority: "Medium" as const,
+                  criterion: b.criterion,
+                  labels: [kind, "automated-candidate", "autopilot"],
+                  gherkin: "",
+                  steps: stepsFor(b.criterion, kind),
+                };
+              })),
+        ],
         branchName: `qe/${i.story.key}-specs`,
       };
     },
   }),
 
-  // ------------------------------------------------------------------ 5 --
+  // ------------------------------------------------------------------ 6 --
   verifier: def({
     id: "verifier",
     name: "Verifier",
     role: "Checks the work against the story",
     description:
       "Maps every acceptance criterion to the test that covers it and inspects the generated files for placeholders, broken imports and assertions that cannot fail.",
-    order: 5,
+    order: 6,
     input: P.VerifierIn,
     output: P.VerifierOut,
     tool: "submit_verification",
@@ -437,14 +700,14 @@ Method:
     },
   }),
 
-  // ------------------------------------------------------------------ 6 --
+  // ------------------------------------------------------------------ 7 --
   reviewer: def({
     id: "reviewer",
     name: "Reviewer",
     role: "The gate before anything is published",
     description:
       "Decides whether the suite is fit to propose to Xray and Bitbucket, and writes the pull request. Sends work back rather than waving through something a human would reject.",
-    order: 6,
+    order: 7,
     input: P.ReviewerIn,
     output: P.ReviewerOut,
     tool: "submit_review",
