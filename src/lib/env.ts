@@ -23,6 +23,11 @@ const Env = z.object({
 
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().min(1).default("claude-sonnet-5"),
+  /**
+   * Optional cheaper model for the light stages (reading the story, planning assets). Empty:
+   * every stage uses ANTHROPIC_MODEL and differs only in effort.
+   */
+  ANTHROPIC_FAST_MODEL: z.string().optional().default(""),
   /** Per request, in milliseconds. Retries each get their own timeout. */
   MODEL_TIMEOUT_MS: num(120_000),
   MODEL_MAX_RETRIES: num(3),

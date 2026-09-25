@@ -14,13 +14,16 @@
     "test:e2e": "tsx --env-file=.env scripts/pipeline-e2e.ts",
     "test:autopilot": "tsx --env-file=.env scripts/autopilot-e2e.ts",
     "test:jira": "tsx --env-file=.env scripts/jira-e2e.ts",
+    "test:quality": "tsx scripts/quality-check.ts",
+    "test:live": "tsx --env-file=.env scripts/live-e2e.ts",
     "db:up": "docker compose up -d db",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "worker": "tsx --env-file=.env scripts/worker.ts",
     "test:platform": "tsx --env-file=.env scripts/platform-check.ts",
-    "test": "npm run test:agents && npm run test:pipeline && npm run test:e2e && npm run test:autopilot && npm run test:jira && npm run test:platform",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:quality && npm run test:agents && npm run test:pipeline && npm run test:e2e && npm run test:autopilot && npm run test:jira && npm run test:live && npm run test:platform",
+    "build:pages": "esbuild src/lib/agents/rulebook.ts --bundle --format=iife --global-name=Rulebook --target=es2020 --banner:js=\"/* Generated from src/lib/agents/rulebook.ts by npm run build:pages. Do not edit. */\" --outfile=docs/rulebook.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
@@ -41,6 +44,7 @@
     "@types/node": "^26.3.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
+    "esbuild": "^0.28.2",
     "postcss": "^8.5.26",
     "prisma": "^6.19.3",
     "tailwindcss": "^4.3.3",

@@ -1,6 +1,8 @@
 import type { z } from "zod";
 import * as P from "./pipeline-schemas";
 import { hasLesson, type Memory } from "./types";
+import { rulebookPrompt } from "./rulebook";
+import type { Effort } from "./llm";
 
 export type SubAgentId =
   | "story-analyzer"
@@ -25,7 +27,13 @@ export interface SubAgentDef<I extends z.ZodType = z.ZodType, O extends z.ZodTyp
   prompt: (input: z.infer<I>) => string;
   simulate: (input: z.infer<I>, memory?: Memory) => z.infer<O>;
   maxTokens?: number;
+  /** Thinking effort for this stage: low for reading and routing, high for code and the final gate. */
+  effort: Effort;
+  /** "fast" stages run on ANTHROPIC_FAST_MODEL when one is configured. */
+  tier: "main" | "fast";
 }
+
+const RULEBOOK = rulebookPrompt();
 
 const HOUSE = `
 You are one sub-agent inside Autopilot's qe-pipeline. The pipeline turns a Jira story into Xray
@@ -127,6 +135,12 @@ function overlap(a: string, b: string) {
 const HIGH_IMPACT =
   /\b(pay|payment|price|total|amount|charge|refund|discount|balance|invoice|order|password|login|sign.?in|permission|role|auth|token|secure|security|delete|remove|lose|loss|personal data|gdpr)\b/i;
 
+/** A criterion's title for test names: its AC heading or first clause, cut at a word boundary. */
+export function shortTitle(criterion: string, max = 64) {
+  const t = criterion.replace(/^AC\s*\d+\s*[-:]\s*/i, "").split(/[:.;]|,\s(?=when|then|and)\b/i)[0].trim();
+  return t.length <= max ? t : t.slice(0, t.lastIndexOf(" ", max)).replace(/(\s+(with|to|the|a|an|of|and|or|for|in|on|by|at))+$/i, "").replace(/[\s,]+$/, "");
+}
+
 export function techniquesFor(criterion: string): (typeof P.TECHNIQUES)[number][] {
   const c = criterion.toLowerCase();
   const t: (typeof P.TECHNIQUES)[number][] = [];
@@ -172,6 +186,8 @@ export const SUB_AGENTS = {
     description:
       "Turns the story and its acceptance criteria into a list of testable behaviours, and separates what is genuinely unclear from what is merely unstated.",
     order: 1,
+    effort: "low",
+    tier: "fast",
     input: P.StoryAnalyzerIn,
     output: P.StoryAnalyzerOut,
     tool: "submit_analysis",
@@ -235,6 +251,8 @@ Method:
     description:
       "Turns ambiguities into questions a product owner can answer in one line, each with a suggested default. Stops the pipeline when an answer is genuinely required.",
     order: 2,
+    effort: "medium",
+    tier: "fast",
     input: P.ClarifyIn,
     output: P.ClarifyOut,
     tool: "submit_questions",
@@ -292,6 +310,8 @@ Method:
     description:
       "Decides, per acceptance criterion, which design techniques to apply, at which test level, with what priority, setup and data — and what the tests already linked in Xray cover, so nothing is duplicated.",
     order: 3,
+    effort: "medium",
+    tier: "main",
     input: P.TestStrategistIn,
     output: P.TestStrategistOut,
     tool: "submit_strategy",
@@ -344,7 +364,7 @@ Method:
         const risk = score === 2 ? "high" : score === 1 ? "medium" : "low";
         const techniques = techniquesFor(criterion);
         const level = levelFor(criterion, i.story);
-        const short = criterion.replace(/^AC\s*\d+\s*[-:]\s*/i, "").split(/[:.]/)[0].slice(0, 70);
+        const short = shortTitle(criterion);
         const wanted: { title: string; kind: "positive" | "negative" | "edge" }[] = [
           { title: `${short} — succeeds when the conditions hold`, kind: "positive" },
           { title: `${short} — rejected when a condition is not met`, kind: "negative" },
@@ -410,6 +430,8 @@ Method:
     description:
       "Reads the Bitbucket repository to find fixtures, page objects and helpers that already exist, so the pipeline extends the suite instead of duplicating it.",
     order: 4,
+    effort: "low",
+    tier: "fast",
     input: P.AssetResolverIn,
     output: P.AssetResolverOut,
     tool: "submit_asset_plan",
@@ -469,12 +491,16 @@ Method:
     description:
       "Writes complete, runnable spec files against the repo's conventions, and the matching Xray test cases with real steps and expected results.",
     order: 5,
+    effort: "high",
+    tier: "main",
     input: P.SpecAuthorIn,
     output: P.SpecAuthorOut,
     tool: "submit_specs",
     toolDescription: "Return the files to commit and the Xray test cases to create.",
     maxTokens: 12000,
     system: `${HOUSE}
+${RULEBOOK}
+
 
 You are spec-author, the fifth stage.
 
@@ -644,12 +670,16 @@ ${behaviours
     description:
       "Maps every acceptance criterion to the test that covers it and inspects the generated files for placeholders, broken imports and assertions that cannot fail.",
     order: 6,
+    effort: "medium",
+    tier: "main",
     input: P.VerifierIn,
     output: P.VerifierOut,
     tool: "submit_verification",
     toolDescription: "Return the coverage map and any defects found.",
     maxTokens: 6000,
     system: `${HOUSE}
+${RULEBOOK}
+
 
 You are verifier, the fifth stage. You are adversarial about the previous stage's output.
 
@@ -708,12 +738,16 @@ Method:
     description:
       "Decides whether the suite is fit to propose to Xray and Bitbucket, and writes the pull request. Sends work back rather than waving through something a human would reject.",
     order: 7,
+    effort: "high",
+    tier: "main",
     input: P.ReviewerIn,
     output: P.ReviewerOut,
     tool: "submit_review",
     toolDescription: "Return the verdict and, when approving, the pull request text.",
     maxTokens: 5000,
     system: `${HOUSE}
+${RULEBOOK}
+
 
 You are reviewer, the final stage. Nothing reaches Xray or Bitbucket unless you approve it.
 
@@ -777,10 +811,12 @@ export interface SubAgentMeta {
   role: string;
   description: string;
   order: number;
+  effort: Effort;
+  tier: "main" | "fast";
 }
 
 export const SUB_AGENT_LIST: SubAgentMeta[] = Object.values(SUB_AGENTS)
-  .map((a) => ({ id: a.id, name: a.name, role: a.role, description: a.description, order: a.order }))
+  .map((a) => ({ id: a.id, name: a.name, role: a.role, description: a.description, order: a.order, effort: a.effort, tier: a.tier }))
   .sort((a, b) => a.order - b.order);
 
 export const isSubAgentId = (v: string): v is SubAgentId => v in SUB_AGENTS;

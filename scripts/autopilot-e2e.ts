@@ -104,18 +104,23 @@ async function main() {
 
   const lessons1 = await db.lesson.findMany({ where: { workspaceId: ws.id } });
   const keys1 = new Set(lessons1.map((l) => l.key));
-  for (const k of ["no-fixed-waits", "stable-selectors", "behaviour-per-criterion", "known-defect-pay-806"]) {
+  for (const k of ["stable-selectors", "behaviour-per-criterion", "known-defect-pay-806"]) {
     check(`cycle 1 learned ${k}`, keys1.has(k));
   }
+  // Fixed sleeps never reach execution: the pipeline's quality gate removes them for free, so
+  // there is nothing to heal and nothing to learn.
+  const drafted = await db.asset.findMany({ where: { runId: { in: children.filter((c) => c.agent === "qe-pipeline").map((c) => c.id) }, kind: "spec" } });
+  check("the quality gate removed every fixed sleep before execution", drafted.length > 0 && drafted.every((s) => !s.content.includes("waitForTimeout")));
+  check("so no lesson about sleeps is needed", !keys1.has("no-fixed-waits"));
   check(
     "lessons are scoped to the agent that could prevent them",
-    lessons1.find((l) => l.key === "no-fixed-waits")?.scope === "spec-author" &&
+    lessons1.find((l) => l.key === "stable-selectors")?.scope === "spec-author" &&
       lessons1.find((l) => l.key === "behaviour-per-criterion")?.scope === "story-analyzer"
   );
 
   // ---- cycle 2: the same sprint, with what cycle 1 learned ----
   const c2 = await cycle(ws.id, sprint.id);
-  check("cycle 2 applies the lessons", c2.out.metrics.lessonsApplied >= 4, `${c2.out.metrics.lessonsApplied}`);
+  check("cycle 2 applies the lessons", c2.out.metrics.lessonsApplied >= 3, `${c2.out.metrics.lessonsApplied}`);
   check(
     "first-run pass rate improves",
     c2.out.metrics.firstRunPassRate > c1.out.metrics.firstRunPassRate,
@@ -126,32 +131,32 @@ async function main() {
   check("the defect is still reported — learning does not hide bugs", c2.out.metrics.appBugs > 0);
   check(
     "applied lessons that held are confirmed",
-    ["no-fixed-waits", "stable-selectors", "behaviour-per-criterion"].every((k) => c2.out.learning?.confirmed.includes(k)),
+    ["stable-selectors", "behaviour-per-criterion"].every((k) => c2.out.learning?.confirmed.includes(k)),
     c2.out.learning?.confirmed.join(",")
   );
-  const before = lessons1.find((l) => l.key === "no-fixed-waits")!.confidence;
-  const after = (await db.lesson.findFirstOrThrow({ where: { workspaceId: ws.id, key: "no-fixed-waits" } })).confidence;
+  const before = lessons1.find((l) => l.key === "stable-selectors")!.confidence;
+  const after = (await db.lesson.findFirstOrThrow({ where: { workspaceId: ws.id, key: "stable-selectors" } })).confidence;
   check("a confirmed lesson gains confidence", after > before, `${before} → ${after}`);
   check("the report compares with the previous cycle", /Against cycle 1/.test(c2.out.report?.summary ?? ""));
 
   // ---- self-correction: a lesson that is applied but does not help loses confidence ----
   const { ws: ws2, sprint: sprint2 } = await workspace();
-  // Mis-scoped on purpose: the verifier cannot stop spec-author writing sleeps, so the problem recurs.
+  // Mis-scoped on purpose: the verifier cannot stop spec-author choosing styling selectors, so the problem recurs.
   await db.lesson.create({
-    data: { workspaceId: ws2.id, key: "no-fixed-waits", scope: "verifier", category: "heal", rule: "Avoid fixed waits.", confidence: 0.5 },
+    data: { workspaceId: ws2.id, key: "stable-selectors", scope: "verifier", category: "heal", rule: "Avoid styling selectors.", confidence: 0.5 },
   });
   const c3 = await cycle(ws2.id, sprint2.id);
-  const contradicted = await db.lesson.findFirstOrThrow({ where: { workspaceId: ws2.id, key: "no-fixed-waits" } });
-  check("an applied lesson whose problem recurs is contradicted", c3.out.learning?.contradicted.includes("no-fixed-waits") ?? false);
+  const contradicted = await db.lesson.findFirstOrThrow({ where: { workspaceId: ws2.id, key: "stable-selectors" } });
+  check("an applied lesson whose problem recurs is contradicted", c3.out.learning?.contradicted.includes("stable-selectors") ?? false);
   check("a contradicted lesson loses confidence", contradicted.confidence < 0.5, `${contradicted.confidence}`);
   await db.lesson.update({ where: { id: contradicted.id }, data: { confidence: 0.3 } });
   const c4 = await cycle(ws2.id, sprint2.id);
-  const retired = await db.lesson.findFirstOrThrow({ where: { workspaceId: ws2.id, key: "no-fixed-waits" } });
-  check("a lesson that keeps failing retires", retired.status === "retired" && (c4.out.learning?.retired.includes("no-fixed-waits") ?? false), `${retired.status} ${retired.confidence}`);
+  const retired = await db.lesson.findFirstOrThrow({ where: { workspaceId: ws2.id, key: "stable-selectors" } });
+  check("a lesson that keeps failing retires", retired.status === "retired" && (c4.out.learning?.retired.includes("stable-selectors") ?? false), `${retired.status} ${retired.confidence}`);
 
   // ---- lesson history ----
   const history = await db.lessonEvent.findMany({ where: { lesson: { workspaceId: ws.id } } });
-  check("every new lesson records how it was learned", history.filter((e) => e.kind === "created").length >= 4);
+  check("every new lesson records how it was learned", history.filter((e) => e.kind === "created").length >= 3);
   check("confirmations are recorded in the lesson's history", history.some((e) => e.kind === "confirmed"));
 
   // ---- defects become Jira bug proposals, once ----
@@ -185,7 +190,7 @@ async function main() {
   const r1 = await startCycle({ workspaceId: ws4.id, sprintId: sprint4.id, campaign: reviewCampaign });
   const reviewed = await runCampaign({ firstRunId: r1.id, workspaceId: ws4.id, sprintId: sprint4.id, campaign: reviewCampaign, paceMs: 0 });
   const pending = await db.lesson.findMany({ where: { workspaceId: ws4.id } });
-  check("in review mode new lessons wait as proposed", pending.length >= 4 && pending.every((l) => l.status === "proposed"));
+  check("in review mode new lessons wait as proposed", pending.length >= 3 && pending.every((l) => l.status === "proposed"));
   check("the run stops when only approval would help", reviewed.reason === "awaiting-approval", reviewed.reason);
   const second = await db.run.findUniqueOrThrow({ where: { id: reviewed.cycles[1] } });
   check("a proposed lesson is never applied", JSON.parse(second.outputJson ?? "{}").metrics?.lessonsApplied === 0);
@@ -194,7 +199,7 @@ async function main() {
   await db.lesson.updateMany({ where: { workspaceId: ws4.id, key: { not: reject.key } }, data: { status: "active" } });
   await db.lesson.update({ where: { id: reject.id }, data: { status: "rejected" } });
   const r3 = await cycle(ws4.id, sprint4.id);
-  check("approved lessons are applied", r3.out.metrics.lessonsApplied >= 3, `${r3.out.metrics.lessonsApplied}`);
+  check("approved lessons are applied", r3.out.metrics.lessonsApplied >= 2, `${r3.out.metrics.lessonsApplied}`);
   const stillRejected = await db.lesson.findUniqueOrThrow({ where: { id: reject.id } });
   check("a rejected lesson stays rejected when its evidence recurs", stillRejected.status === "rejected" && stillRejected.hits > reject.hits);
   check("the problem a rejected lesson would have fixed still needs healing", r3.out.metrics.healed > 0);

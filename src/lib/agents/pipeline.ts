@@ -7,6 +7,9 @@ import { db } from "@/lib/db";
 import { parseJson } from "@/lib/utils";
 import * as P from "./pipeline-schemas";
 import { listFiles } from "@/lib/atlassian/bitbucket";
+import { RULES, qualityGate, type GateResult } from "./rulebook";
+
+const RULE_FIX: Record<string, string> = Object.fromEntries(RULES.map((r) => [r.id, r.instead]));
 import { bitbucketConfigured } from "@/lib/atlassian/config";
 
 type Analyzer = z.infer<typeof P.StoryAnalyzerOut>;
@@ -32,8 +35,10 @@ async function runSubAgent<T>(
   id: SubAgentId,
   input: unknown,
   memory?: Memory,
-  runId?: string
-): Promise<{ output: T; mode: "live" | "simulated" }> {
+  runId?: string,
+  /** Answer without a model call when the input leaves nothing to reason about. */
+  deterministic = false
+): Promise<{ output: T; mode: "live" | "simulated" | "deterministic" }> {
   const def = SUB_AGENTS[id] as unknown as SubAgentDef;
   const parsed = def.input.safeParse(input);
   if (!parsed.success) {
@@ -42,8 +47,8 @@ async function runSubAgent<T>(
     );
   }
 
-  if (!agentsAreLive()) {
-    return { output: def.output.parse(def.simulate(parsed.data, memory)) as T, mode: "simulated" };
+  if (!agentsAreLive() || deterministic) {
+    return { output: def.output.parse(def.simulate(parsed.data, memory)) as T, mode: agentsAreLive() ? "deterministic" : "simulated" };
   }
 
   const { output } = await callStructured<T>({
@@ -56,6 +61,8 @@ async function runSubAgent<T>(
     schema: def.output as never,
     maxTokens: def.maxTokens,
     runId,
+    effort: def.effort,
+    tier: def.tier,
   });
   return { output, mode: "live" };
 }
@@ -67,6 +74,24 @@ async function log(
   stage = "pipeline"
 ) {
   await db.event.create({ data: { runId, message, level, source: stage, stage } });
+}
+
+/**
+ * The free quality gate over spec-author's files: fixes what the rulebook can fix with
+ * certainty and logs everything it found. Runs after every draft, before anything is stored.
+ */
+async function gate<A extends { files: { path: string; content: string; kind: string }[] }>(runId: string, authored: A) {
+  const result = qualityGate(authored.files);
+  for (const f of result.findings) {
+    await log(
+      runId,
+      `${f.fixed ? "fixed" : f.severity === "block" ? "[blocking]" : "[warn]"} ${f.title} — ${f.path}:${f.line} ${f.text}`,
+      f.fixed ? "ok" : f.severity === "block" ? "warn" : "info",
+      "quality-gate"
+    );
+  }
+  await log(runId, result.summary, result.blocking ? "warn" : "ok", "quality-gate");
+  return { authored: { ...authored, files: result.files }, result };
 }
 
 async function startStage(runId: string, id: SubAgentId) {
@@ -252,14 +277,17 @@ export async function runPipeline(opts: {
     await log(runId, "Bitbucket is not configured — planning assets without the repo's history.", "warn", "asset-resolver");
   }
 
+  // With no repository listing there is nothing for a model to weigh: the plan is the
+  // conventions default, so it is produced without a model call.
   const resolved = (
     await runSubAgent<Resolver>("asset-resolver", {
       story: storyCtx,
       behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
       repoPaths,
       framework: ws.testFramework,
-    }, mem("asset-resolver"), runId)
+    }, mem("asset-resolver"), runId, repoPaths.length === 0)
   ).output;
+  if (repoPaths.length === 0 && agentsAreLive()) await log(runId, "no repository to read — default conventions, no model call", "info", "asset-resolver");
   await endStage(runId, "asset-resolver", "passed", resolved.summary, resolved);
   await pace();
   for (const r of resolved.reuse) await log(runId, `reuse ${r.path} — ${r.why}`, "ok", "asset-resolver");
@@ -277,6 +305,8 @@ export async function runPipeline(opts: {
       strategy: plan,
     }, mem("spec-author"), runId)
   ).output;
+  let gated = await gate(runId, authored);
+  authored = gated.authored;
 
   for (const f of authored.files) {
     await db.asset.create({
@@ -312,15 +342,31 @@ export async function runPipeline(opts: {
   // stopping there, spec-author gets the findings back and revises. Two attempts: enough
   // to fix what a careful author would catch on re-read, not enough to loop forever.
   const MAX_REVISIONS = 2;
-  await startStage(runId, "verifier");
-  let verified = (
-    await runSubAgent<Verify>("verifier", {
+  // When the quality gate already found blocking defects, the draft goes back without paying
+  // for a model review of code that is known to need changes.
+  const verify = async (files: { path: string; content: string }[], cases: { summary: string; criterion: string }[], g: GateResult) => {
+    const input = {
       story: storyCtx,
       behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
-      files: authored.files.map((f) => ({ path: f.path, content: f.content })),
-      testCases: [...authored.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })), ...existingCoverage],
-    }, mem("verifier"), runId)
-  ).output;
+      files: files.map((f) => ({ path: f.path, content: f.content })),
+      testCases: [...cases.map((t) => ({ summary: t.summary, criterion: t.criterion })), ...existingCoverage],
+    };
+    const out = (await runSubAgent<Verify>("verifier", input, mem("verifier"), runId, g.blocking > 0)).output;
+    if (g.blocking === 0) return out;
+    if (agentsAreLive()) await log(runId, `${g.blocking} blocking finding(s) from the quality gate — sent back without a model review`, "warn", "verifier");
+    return {
+      ...out,
+      passed: false,
+      defects: [
+        ...out.defects,
+        ...g.findings
+          .filter((f) => f.severity === "block" && !f.fixed)
+          .map((f) => ({ path: f.path, severity: "blocker" as const, issue: `${f.title} (line ${f.line}): ${f.text}`, fix: RULE_FIX[f.rule] ?? "" })),
+      ],
+    };
+  };
+  await startStage(runId, "verifier");
+  let verified = await verify(authored.files, authored.testCases, gated.result);
   for (const d of verified.defects) {
     await log(runId, `[${d.severity}] ${d.path}: ${d.issue}`, d.severity === "minor" ? "info" : "warn", "verifier");
   }
@@ -355,11 +401,13 @@ export async function runPipeline(opts: {
         },
       }, mem("spec-author"), runId)
     ).output;
+    gated = await gate(runId, revised);
+    const revisedGated = gated.authored;
 
     // Replace the previous attempt's output rather than accumulating duplicates.
     await db.asset.deleteMany({ where: { runId, reused: false } });
     await db.testCase.deleteMany({ where: { runId } });
-    for (const f of revised.files) {
+    for (const f of revisedGated.files) {
       await db.asset.create({
         data: { runId, path: f.path, kind: f.kind, content: f.content, bytes: f.content.length },
       });
@@ -380,19 +428,12 @@ export async function runPipeline(opts: {
         },
       });
     }
-    authored = revised;
-    await endStage(runId, "spec-author", "passed", `revision ${attempt}: ${revised.summary}`, revised);
+    authored = revisedGated;
+    await endStage(runId, "spec-author", "passed", `revision ${attempt}: ${revised.summary}`, revisedGated);
     await pace();
 
     await startStage(runId, "verifier");
-    verified = (
-      await runSubAgent<Verify>("verifier", {
-        story: storyCtx,
-        behaviours: analysis.behaviours.map((b) => ({ name: b.name, criterion: b.criterion })),
-        files: revised.files.map((f) => ({ path: f.path, content: f.content })),
-        testCases: [...revised.testCases.map((t) => ({ summary: t.summary, criterion: t.criterion })), ...existingCoverage],
-      }, mem("verifier"), runId)
-    ).output;
+    verified = await verify(authored.files, authored.testCases, gated.result);
     for (const d of verified.defects) {
       await log(runId, `[${d.severity}] ${d.path}: ${d.issue}`, d.severity === "minor" ? "info" : "warn", "verifier");
     }
@@ -466,7 +507,7 @@ export async function runPipeline(opts: {
     data: {
       status: reviewed.publishReady ? "needs_review" : "blocked",
       finishedAt: new Date(),
-      outputJson: JSON.stringify({ analysis, clarification, strategy, resolved, authored, verified, reviewed }),
+      outputJson: JSON.stringify({ analysis, clarification, strategy, resolved, authored, verified, reviewed, quality: gated.result }),
     },
   });
 

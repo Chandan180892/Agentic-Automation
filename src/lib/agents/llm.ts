@@ -52,6 +52,49 @@ function toolSchema(schema: z.ZodType) {
   return json as Anthropic.Tool.InputSchema;
 }
 
+/**
+ * List prices in dollars per million tokens (Claude API, first party). Cache writes (5-minute
+ * TTL) cost 1.25× input and cache reads 0.1× input. A model not listed is not priced — its
+ * calls are still counted in tokens.
+ */
+const PRICES: [RegExp, number, number][] = [
+  [/^claude-(fable|mythos)-5/, 10, 50],
+  [/^claude-opus-5-5/, 4, 20],
+  [/^claude-opus-(5|4-[5-8])/, 5, 25],
+  [/^claude-sonnet-5/, 2, 10],
+  [/^claude-sonnet-4/, 3, 15],
+  [/^claude-haiku-4/, 1, 5],
+];
+
+/** Dollar cost of one call's usage, or null when the model has no known price. */
+export function costUsd(
+  model: string,
+  u: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null }
+): number | null {
+  const p = PRICES.find(([re]) => re.test(model));
+  if (!p) return null;
+  const [, inp, out] = p;
+  return (
+    (u.input_tokens * inp +
+      (u.cache_creation_input_tokens ?? 0) * inp * 1.25 +
+      (u.cache_read_input_tokens ?? 0) * inp * 0.1 +
+      u.output_tokens * out) /
+    1_000_000
+  );
+}
+
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+
+/** Models that take `output_config.effort`; Haiku 4.5 and older reject it. */
+const EFFORT_MODELS = /^claude-(opus-(5|4-[5-8])|sonnet-(5|4-6)|fable|mythos)/;
+export const supportsEffort = (model: string) => EFFORT_MODELS.test(model);
+
+/** The model a stage runs on: the fast model for light stages when one is configured. */
+export function modelFor(tier: "main" | "fast" = "main") {
+  const cfg = env();
+  return tier === "fast" && cfg.ANTHROPIC_FAST_MODEL ? cfg.ANTHROPIC_FAST_MODEL : cfg.ANTHROPIC_MODEL;
+}
+
 const issues = (e: z.ZodError) => e.issues.map((i) => `${i.path.join(".") || "root"} ${i.message}`).join("; ");
 
 /** Tokens used by the workspace since UTC midnight. */
@@ -78,11 +121,18 @@ export interface StructuredCall<T> {
   maxTokens?: number;
   /** The run to charge usage to, and whose workspace budget applies. */
   runId?: string | null;
+  /**
+   * How hard the model should think. Reading and routing stages run low; writing code and the
+   * final review run high. Ignored by models that do not support it.
+   */
+  effort?: Effort;
+  /** "fast" runs on ANTHROPIC_FAST_MODEL when one is set. */
+  tier?: "main" | "fast";
 }
 
 export async function callStructured<T>(call: StructuredCall<T>): Promise<{ output: T; model: string }> {
   const cfg = env();
-  const model = cfg.ANTHROPIC_MODEL;
+  const model = modelFor(call.tier);
 
   let workspaceId: string | null = null;
   if (call.runId) {
@@ -122,6 +172,7 @@ export async function callStructured<T>(call: StructuredCall<T>): Promise<{ outp
         },
       ],
       tool_choice: forced ? { type: "tool", name: call.tool } : { type: "auto" },
+      ...(call.effort && supportsEffort(model) ? { output_config: { effort: call.effort } } : {}),
       messages: [{ role: "user", content: call.prompt }],
     });
   } catch (err) {
@@ -144,9 +195,12 @@ export async function callStructured<T>(call: StructuredCall<T>): Promise<{ outp
   }
 
   const usage = message.usage;
+  const cost = costUsd(model, usage);
   log.info("model call", {
     agent: call.agent,
     model,
+    effort: call.effort,
+    usd: cost === null ? undefined : Number(cost.toFixed(5)),
     ms: Date.now() - started,
     stop: message.stop_reason,
     input: usage.input_tokens,
@@ -163,6 +217,7 @@ export async function callStructured<T>(call: StructuredCall<T>): Promise<{ outp
           outputTokens: { increment: usage.output_tokens },
           cacheReadTokens: { increment: usage.cache_read_input_tokens ?? 0 },
           cacheWriteTokens: { increment: usage.cache_creation_input_tokens ?? 0 },
+          costMicroUsd: { increment: cost === null ? 0 : Math.round(cost * 1_000_000) },
         },
       })
       .catch(() => {

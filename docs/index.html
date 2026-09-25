@@ -237,6 +237,14 @@ ul.plain { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.
   .metric:nth-child(2n) { border-right: 0; }
     .controls { margin-left: 0; }
 }
+/* quality rules */
+.rule { display: grid; gap: 4px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
+.rule:last-child { border-bottom: 0; }
+.rule .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rule .src { font-size: 11px; color: var(--muted); }
+.rule .src a { color: inherit; }
+.finding { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--line-soft); }
+.finding code { font: 11px var(--mono); color: var(--muted); }
 /* jira story → tests */
 .stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 6px; }
 .j-grid { grid-template-columns: minmax(0, .8fr) minmax(0, 1.35fr); }
@@ -288,6 +296,7 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
   <span class="group">Agents</span>
   <a href="#jira" data-nav="jira"><svg viewBox="0 0 24 24"><path d="M12 3l9 9-9 9-9-9 9-9ZM12 8l4 4-4 4-4-4 4-4Z"/></svg>Jira story → tests</a>
   <a href="#autopilot" data-nav="autopilot"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5M12 8v4l3 2"/></svg>Autopilot<span class="tick" id="tick-autopilot"></span></a>
+  <a href="#rules" data-nav="rules"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>Quality rules</a>
   <a href="#backlog" data-nav="backlog"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg>Backlog<span class="tick" id="tick-backlog"></span></a>
   <a href="#agents" data-nav="agents"><svg viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M9 14h.01M15 14h.01"/></svg>Agents<span class="tick">14</span></a>
   <a href="#runs" data-nav="runs"><svg viewBox="0 0 24 24"><path d="M3 18l5-6 4 4 4-7 5 6M3 21h18"/></svg>Runs<span class="tick" id="tick-runs">0</span></a>
@@ -431,6 +440,25 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
   </div>
 </div>
 
+<!-- -------------------------------------------------------------- rules -->
+<div class="wrap" data-view="rules" hidden>
+  <div class="page-h"><h1>Quality rules</h1><p>What most often makes API, UI and end-to-end suites flaky, slow or blind, and what the agents do instead.</p></div>
+  <div class="grid-2 j-grid">
+    <section class="card">
+      <div class="card-h"><h3>Check a spec</h3><span class="note">paste any Playwright file; nothing leaves your browser</span></div>
+      <div class="card-b" style="display:grid;gap:10px">
+        <label class="field"><span class="label">Spec file</span><textarea id="r-code" style="min-height:220px" spellcheck="false"></textarea></label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="button" id="r-run">Run the quality gate</button><button class="btn" type="button" id="r-sample">Load a flawed example</button></div>
+        <div id="r-out"></div>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h3>The rulebook</h3><span class="pill" id="r-count"></span><span class="note">the same rules the server app enforces</span></div>
+      <div class="card-b" id="r-list" style="display:grid;gap:0;padding-block:4px"></div>
+    </section>
+  </div>
+</div>
+
 <!-- ------------------------------------------------------------ backlog -->
 <div class="wrap" data-view="backlog" hidden>
   <div class="page-h"><h1>Backlog</h1><p>Sprint 24 · the stories the next cycle plans and tests. Changes apply from the next cycle.</p></div>
@@ -473,6 +501,14 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
     <div class="card-h"><h3>Inside qe-pipeline</h3><span class="note">one Jira story in, Xray tests and a Bitbucket PR out</span></div>
     <div class="card-b grid-3" id="sub-list"></div>
   </section>
+  <section class="card">
+    <div class="card-h"><h3>Right first time, at low cost</h3><span class="note">how the live app spends model tokens</span></div>
+    <div class="card-b prose" style="font-size:12.5px">
+      <p><b>A free quality gate.</b> Every draft is checked against the <a href="#rules">quality rules</a> in code, not by a model. Fixed sleeps, <code>test.only</code>, forced clicks, one-shot visibility checks and debug logging are fixed automatically; blocking problems go straight back to spec-author without paying for a review.</p>
+      <p><b>No call where the answer is known.</b> clarify is skipped when nothing is ambiguous, asset-resolver when there is no repository to read, the verifier when the gate already found a blocking problem.</p>
+      <p><b>Effort per stage.</b> Reading and routing run at low effort (optionally on a cheaper model), the strategy and verification at medium, writing the specs and the final review at high. System prompts, rulebook included, are cached. Each run records its calls, tokens and dollar cost.</p>
+    </div>
+  </section>
 </div>
 
 <!-- --------------------------------------------------------------- runs -->
@@ -506,6 +542,7 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
 </main>
 </div>
 
+<script src="rulebook.js"></script>
 <script>
 (() => {
   "use strict";
@@ -1112,7 +1149,7 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
   $("speed").addEventListener("change", () => { try { localStorage.setItem("autopilot-autopilot-speed", $("speed").value); } catch { /* ignore */ } });
 
   // ---------------------------------------------------------------- views --
-  const VIEWS = ["autopilot", "jira", "backlog", "agents", "runs", "about"];
+  const VIEWS = ["autopilot", "jira", "rules", "backlog", "agents", "runs", "about"];
   function route() {
     const v = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "autopilot";
     document.querySelectorAll("[data-view]").forEach((el) => (el.hidden = el.dataset.view !== v));
@@ -1121,6 +1158,7 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
     if (v === "backlog") renderBacklog();
     if (v === "runs") renderRuns();
     if (v === "jira") renderJira();
+    if (v === "rules") renderRules();
     scrollTo(0, 0);
   }
   addEventListener("hashchange", route);
@@ -1301,7 +1339,11 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
     });
     return steps;
   }
-  const shortOf = (c) => c.replace(/^AC\s*\d+\s*[-:]\s*/i, "").split(/[:.]/)[0].replace(/^given\s+/i, "").slice(0, 70);
+  // Same as shortTitle() in pipeline-registry.ts: the AC heading or first clause, cut at a word.
+  const shortOf = (c, max = 64) => {
+    const t = c.replace(/^AC\s*\d+\s*[-:]\s*/i, "").split(/[:.;]|,\s(?=when|then|and)\b/i)[0].replace(/^given\s+/i, "").trim();
+    return t.length <= max ? t : t.slice(0, t.lastIndexOf(" ", max)).replace(/(\s+(with|to|the|a|an|of|and|or|for|in|on|by|at))+$/i, "").replace(/[\s,]+$/, "");
+  };
   const slug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
   function strategize(st, criteria) {
@@ -1340,33 +1382,63 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
   }
 
   function specFor(st, plan, cases) {
-    const byLevel = (lvl) => cases.filter((c) => c.level === lvl);
+    const api = cases.filter((c) => c.level === "api");
     const lines = [
       `import { test, expect } from "@playwright/test";`,
-      ...(byLevel("ui-e2e").length || byLevel("integration").length ? [`import { signedInShopper } from "../fixtures/users";`] : []),
+      ...(api.length < cases.length ? [`import { signedInShopper } from "../fixtures/users";`] : []),
       ``,
       `// ${st.key}: ${st.summary}`,
-      `// Generated from the test strategy; one test per planned scenario, named as in Xray.`,
+      `// One test per planned scenario, named as in Xray. Each test creates its own data.`,
       `test.describe("${st.key} ${st.summary.replace(/"/g, "'")}", () => {`,
     ];
     for (const c of cases) {
+      const then = c.criterion.match(/then (.*)$/i)?.[1] || "";
+      const value = then.match(/\d+(?:\.\d+)?/)?.[0];
+      const noun = (shortOf(c.criterion).match(/[A-Za-z]{4,}/) || ["Submit"])[0];
       lines.push(`  // covers: ${c.criterion.slice(0, 110)}`);
       lines.push(`  test("${c.summary.replace(/"/g, "'")}", async ({ ${c.level === "api" ? "request" : "page"} }) => {`);
-      for (const s of c.steps) {
-        lines.push(`    // ${s.action}${s.data ? ` — ${s.data}` : ""}`);
-      }
+      for (const x of c.steps) lines.push(`    // ${x.action}${x.data ? ` — ${x.data}` : ""}`);
       if (c.level === "api") {
-        lines.push(`    const res = await request.post("/api/${slug(st.summary).slice(0, 30)}", { data: { /* from the preconditions */ } });`);
-        lines.push(`    expect(res.status()).toBe(${c.kind === "negative" ? 400 : 200});`);
+        lines.push(`    const res = await request.post("/api/${slug(st.summary).slice(0, 30)}", { data: { requestId: crypto.randomUUID() } });`);
+        if (c.kind === "negative") {
+          lines.push(`    expect(res.status()).toBe(400);`, `    expect(await res.json()).toMatchObject({ error: expect.any(String) });`);
+        } else {
+          lines.push(`    expect(res.status()).toBe(200);`, `    expect(await res.json()).toMatchObject({ ${value ? `value: ${value}` : "status: expect.any(String)"} });`);
+        }
       } else {
-        lines.push(`    await signedInShopper(page);`);
-        lines.push(`    await page.getByRole("button", { name: /${shortOf(c.criterion).split(" ").slice(0, 2).join(" ").replace(/[^\w ]/g, "")}/i }).click();`);
-        lines.push(`    await expect(page.getByTestId("${c.kind === "positive" ? "result" : "error"}")).toBeVisible();`);
+        lines.push(`    await signedInShopper(page);`, `    await page.goto("/");`);
+        lines.push(`    await page.getByRole("button", { name: /${noun}/i }).click();`);
+        if (c.kind === "negative") lines.push(`    await expect(page.getByRole("alert")).toBeVisible();`);
+        else if (value) lines.push(`    await expect(page.getByRole("status")).toContainText("${value}");`);
+        else lines.push(`    await expect(page.getByRole("status")).toBeVisible();`);
       }
       lines.push(`  });`, ``);
     }
     lines.push(`});`);
     return lines.join("\n");
+  }
+
+  // What the same run would cost live, on Claude Sonnet 5 list prices with cached system
+  // prompts (the steady state once a few stories have run). An estimate, not a measurement.
+  function estimateCost(st, criteria, cases, questions) {
+    const tok = (t) => Math.ceil(String(t).length / 4);
+    const story = tok(st.summary + st.ac + st.tc + st.comments.join(" ") + st.linked.join(" "));
+    const n = criteria.length, k = cases.length;
+    const sys = 2600;
+    const specOut = 350 + 420 * k;
+    const calls = [
+      ["story-analyzer", story, 150 + 140 * n],
+      ...(questions ? [["clarify", story + 300, 400]] : []),
+      ["test-strategist", story + 140 * n, 250 + 320 * n],
+      ["spec-author", story + 320 * n, specOut],
+      ["verifier", story + specOut, 160 + 90 * n],
+      ["reviewer", story + specOut, 350],
+    ];
+    const price = (inp, out, cached) => ((cached ? sys * 0.1 : sys) * 2 + inp * 2 + out * 10) / 1e6;
+    const usd = calls.reduce((a, [, i, o]) => a + price(i, o, true), 0);
+    const naive = [...calls, ["clarify", story, 400], ["asset-resolver", story + 200, 500], ["verifier (second pass)", story + specOut, 400]]
+      .reduce((a, [, i, o]) => a + price(i, o * 1.3, false), 0);
+    return { calls: calls.length, skipped: 7 - calls.length, usd, naive, tokens: calls.reduce((a, [, i, o]) => a + i + o + sys, 0) };
   }
 
   async function runJira() {
@@ -1391,7 +1463,7 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
         return true;
       }
       jRun.out.questions = vague ? [{ q: "One criterion uses a vague word; the tests use the most literal reading.", blocking: false }] : [];
-      say("clarify", vague ? "One non-blocking question; carrying on with the literal reading." : "No ambiguities to resolve.");
+      say("clarify", vague ? "One non-blocking question; carrying on with the literal reading." : "No ambiguities to resolve. No model call.");
       return false;
     });
     if (blocked) {
@@ -1400,15 +1472,19 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
     }
     const plan = await step("test-strategist", () => { const p = strategize(st, criteria); say("test-strategist", p.summary); return p; });
     jRun.out.strategy = plan;
-    await step("asset-resolver", () => say("asset-resolver", "Reusing fixtures/users.ts (signedInShopper); creating one spec file for the story."));
+    await step("asset-resolver", () => say("asset-resolver", "No repository connected here: default conventions, reusing fixtures/users.ts. No model call."));
     const cases = await step("spec-author", () => {
       const list = plan.criteria.flatMap((p) => p.scenarios.filter((x) => !x.coveredBy).map((x) => ({
         summary: `[${jCap(x.kind)}] ${x.title}`, kind: x.kind, criterion: p.criterion, level: p.level,
         priority: { P1: "High", P2: "Medium", P3: "Low" }[p.priority], steps: stepsFor(p.criterion, x.kind, p.preconditions),
         labels: [x.kind, "automated-candidate", "autopilot"],
       })));
-      jRun.out.file = { path: `tests/${st.key.toLowerCase()}.spec.ts`, content: specFor(st, plan, list) };
-      say("spec-author", `Wrote ${list.length} test(s) in ${jRun.out.file.path}; ${list.length} Xray case(s) with steps.`);
+      const draft = { path: `tests/${st.key.toLowerCase()}.spec.ts`, content: specFor(st, plan, list) };
+      say("spec-author", `Wrote ${list.length} test(s) in ${draft.path}; ${list.length} Xray case(s) with steps.`);
+      const gate = window.Rulebook.qualityGate([draft]);
+      jRun.out.file = gate.files[0];
+      jRun.out.quality = gate;
+      say("quality-gate", `${gate.summary} No model call.`);
       return list;
     });
     jRun.out.cases = cases;
@@ -1418,6 +1494,8 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
     });
     await step("reviewer", () => say("reviewer", `Approved. ${cases.length} new test(s) plus ${plan.linked.length} existing cover every criterion.`));
     jRun.report = buildJReport(st, plan, cases);
+    jRun.report.quality = jRun.out.quality;
+    jRun.report.cost = estimateCost(st, criteria, cases, (jRun.out.questions || []).length > 0);
     jRun.busy = false;
     renderJira();
   }
@@ -1451,6 +1529,10 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
       `## New Xray tests (${r.cases.length})`, ``,
       ...r.cases.flatMap((c) => [`- ${c.summary} — ${c.priority}`, ...c.steps.map((s, k) => `  ${k + 1}. ${s.action}${s.data ? ` (${s.data})` : ""} → ${s.expected}`)]), ``,
       `## Existing Xray tests (${r.linked.length})`, ``, ...(r.linked.length ? r.linked.map((t) => `- ${t.key} ${t.summary}`) : ["None linked before this run."]), ``,
+      `## Quality gate`, ``, r.quality ? r.quality.summary : "Not run.",
+      ...(r.quality ? r.quality.findings.map((f) => `- ${f.fixed ? "Fixed" : f.severity === "block" ? "**Blocking**" : "Warning"}: ${f.title} — \`${f.path}:${f.line}\``) : []), ``,
+      `## Estimated live cost`, ``,
+      r.cost ? `About $${r.cost.usd.toFixed(3)} on Claude Sonnet 5 (${r.cost.calls} model calls, ${r.cost.skipped} skipped, cached system prompts) — against about $${r.cost.naive.toFixed(3)} with every stage called at full effort and no caching. An estimate, not a measurement.` : "", ``,
       ...(r.risks.length ? [`## Risks`, ``, ...r.risks.map((x) => `- ${x.risk} — ${x.mitigation}`), ``] : []),
       `## Next steps`, ``, ...r.nextSteps.map((x) => `- ${x}`), ``,
     ].join("\n");
@@ -1498,7 +1580,9 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
             <button class="btn sm" type="button" id="j-dl" style="margin-left:auto">Download report (.md)</button></div>
           <div class="card-b" style="display:grid;gap:12px">
             <p style="margin:0;font-size:12.5px;color:var(--ink-2)">${esc(r.approach)}</p>
-            <div class="levels">${r.levels.map((l) => `<span class="pill" title="${esc(l.why)}">${l.level} ${l.share}%</span>`).join("")}</div>
+            <div class="levels">${r.levels.map((l) => `<span class="pill" title="${esc(l.why)}">${l.level} ${l.share}%</span>`).join("")}
+              ${r.quality ? `<span class="pill ${r.quality.blocking ? "fail" : r.quality.warnings ? "heal" : "pass"}">quality gate: ${r.quality.fixed} fixed · ${r.quality.blocking} blocking · ${r.quality.warnings} warn</span>` : ""}
+              ${r.cost ? `<span class="pill accent" title="Estimate on Claude Sonnet 5 list prices with cached system prompts">≈ $${r.cost.usd.toFixed(3)} live · ${r.cost.calls} calls · ${r.cost.skipped} skipped</span>` : ""}</div>
             ${r.scopeNotes.length ? `<div class="scope"><b>Scope changed in comments</b><br>${r.scopeNotes.map(esc).join("<br>")}</div>` : ""}
           </div>
           <div class="table-wrap"><table><thead><tr><th>Criterion</th><th>Priority</th><th>Level</th><th>Techniques</th><th>Tests</th><th>Covered</th></tr></thead><tbody>
@@ -1507,6 +1591,9 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
               <td class="mono">${c.newTests.length} new${c.existingTests.length ? ` · ${c.existingTests.join(", ")}` : ""}</td><td><span class="pill dot ${c.covered ? "pass" : "fail"}">${c.covered ? "yes" : "no"}</span></td></tr>`).join("")}
           </tbody></table></div>
           <div class="card-b" style="display:grid;gap:8px">
+            <div class="sect"><span class="label">Quality gate</span><span style="font-size:12.5px">${esc(r.quality?.summary || "")} Checked against the <a href="#rules">quality rules</a> in your browser.</span>
+              ${(r.quality?.findings || []).map((f) => `<span class="finding"><span class="pill ${f.fixed ? "pass" : f.severity === "block" ? "fail" : "heal"}">${f.fixed ? "fixed" : f.severity === "block" ? "blocking" : "warn"}</span>${esc(f.title)}<code>${esc(f.path)}:${f.line}</code></span>`).join("")}</div>
+            ${r.cost ? `<div class="sect"><span class="label">Estimated live cost</span><span style="font-size:12.5px">About <b>$${r.cost.usd.toFixed(3)}</b> for this story on Claude Sonnet 5: ${r.cost.calls} model calls (${r.cost.skipped} stages answered without one), cached system prompts, effort set per stage. Every stage called at full effort without caching would be about $${r.cost.naive.toFixed(3)}.</span></div>` : ""}
             ${r.risks.length ? `<div class="sect"><span class="label">Risks</span>${r.risks.map((x) => `<span style="font-size:12.5px">${esc(x.risk)} <span class="muted">— ${esc(x.mitigation)}</span></span>`).join("")}</div>` : ""}
             <div class="sect"><span class="label">Next steps</span>${r.nextSteps.map((x) => `<span style="font-size:12.5px">${esc(x)}</span>`).join("")}</div>
           </div></section>
@@ -1557,6 +1644,54 @@ pre.code { margin: 0; max-height: 340px; overflow: auto; white-space: pre; font:
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
+  });
+
+
+  // -------------------------------------------------------- quality rules --
+  const RB = window.Rulebook;
+  const FLAWED = `import { test, expect } from "@playwright/test";
+
+test.describe.serial("checkout", () => {
+  test.only("[Positive] pay by card", async ({ page }) => {
+    await page.goto("https://staging.shop.example/checkout");
+    await page.locator('.btn-primary').click({ force: true });
+    await page.waitForTimeout(3000);
+    expect(await page.getByRole("status").isVisible()).toBe(true);
+  });
+
+  test("[Negative] expired card", async ({ request }) => {
+    const res = await request.post("/api/pay", { data: { orderId: 12345, token: "tok_live" } });
+    console.log(await res.text());
+    expect(res.status()).toBe(402);
+  });
+
+  test("[Edge] receipt date", async ({ page }) => {
+    // TODO: check the receipt
+    await page.getByRole("link", { name: "Receipt" }).click();
+  });
+});
+`;
+  function renderRules() {
+    if (!RB) return;
+    $("r-count").textContent = `${RB.RULES.length} rules`;
+    $("r-list").innerHTML = RB.RULES.map((r) => `<div class="rule"><div class="row"><b>${esc(r.title)}</b>
+      <span class="pill">${r.layer === "any" ? "all layers" : r.layer}</span>
+      <span class="pill ${r.severity === "block" ? "fail" : "heal"}">${r.severity === "block" ? "blocking" : "warning"}</span>
+      <span class="pill ${r.check ? "pass" : ""}">${r.check ? (r.check.fix ? "checked · auto-fix" : "checked") : "guidance"}</span></div>
+      <span style="color:var(--ink-2)">${esc(r.why)}</span><span><span class="muted">Instead:</span> ${esc(r.instead)}</span>
+      <span class="src">${r.sources.map((x) => (x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a>` : esc(x.name))).join(" · ")}</span></div>`).join("");
+  }
+  function runGate() {
+    const code = $("r-code").value;
+    if (!code.trim()) { $("r-out").innerHTML = `<p class="note">Paste a spec first, or load the example.</p>`; return; }
+    const g = RB.qualityGate([{ path: "pasted.spec.ts", content: code }]);
+    $("r-out").innerHTML = `<div class="sect"><span class="label">Result</span><span class="pill ${g.blocking ? "fail" : g.warnings ? "heal" : "pass"}" style="justify-self:start">${esc(g.summary)}</span>
+      ${g.findings.map((f) => `<span class="finding"><span class="pill ${f.fixed ? "pass" : f.severity === "block" ? "fail" : "heal"}">${f.fixed ? "fixed" : f.severity === "block" ? "blocking" : "warn"}</span><b>${esc(f.title)}</b><code>line ${f.line}: ${esc(f.text)}</code></span>`).join("")}
+      ${g.fixed ? `<span class="label" style="margin-top:8px">After the automatic fixes</span><pre class="code">${esc(g.files[0].content)}</pre>` : ""}</div>`;
+  }
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#r-run")) runGate();
+    if (e.target.closest("#r-sample")) { $("r-code").value = FLAWED; runGate(); }
   });
 
   route();
