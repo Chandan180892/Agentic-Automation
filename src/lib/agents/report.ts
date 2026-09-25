@@ -2,6 +2,7 @@ import type { z } from "zod";
 import { db } from "@/lib/db";
 import { parseJson } from "@/lib/utils";
 import type * as P from "./pipeline-schemas";
+import type { GateResult } from "./rulebook";
 
 type Strategy = z.infer<typeof P.TestStrategistOut>;
 type Analysis = z.infer<typeof P.StoryAnalyzerOut>;
@@ -43,6 +44,10 @@ export interface StoryReport {
   risks: { risk: string; mitigation: string }[];
   scopeNotes: string[];
   revisions: number;
+  /** The rulebook check over the final files; null for runs from before the gate existed. */
+  quality: Pick<GateResult, "checked" | "fixed" | "blocking" | "warnings" | "summary" | "findings"> | null;
+  /** What the model calls for this run cost; zero calls when the agents ran on simulators. */
+  cost: { usd: number; calls: number; inputTokens: number; outputTokens: number; cacheReadTokens: number };
   nextSteps: string[];
 }
 
@@ -64,6 +69,7 @@ export async function buildStoryReport(runId: string): Promise<StoryReport | nul
     strategy?: Strategy;
     verified?: Verify;
     reviewed?: Review;
+    quality?: GateResult;
   }>(run.outputJson, {});
   const ctx = parseJson<{ sprint?: string; parent?: { key: string; summary: string } | null; priority?: string; status?: string; linkedTests?: { key: string; summary: string }[] }>(
     run.story.contextJson,
@@ -124,6 +130,16 @@ export async function buildStoryReport(runId: string): Promise<StoryReport | nul
     risks: strategy?.risks ?? [],
     scopeNotes: strategy?.scopeNotes ?? [],
     revisions: run.events.length,
+    quality: out.quality
+      ? { checked: out.quality.checked, fixed: out.quality.fixed, blocking: out.quality.blocking, warnings: out.quality.warnings, summary: out.quality.summary, findings: out.quality.findings }
+      : null,
+    cost: {
+      usd: run.costMicroUsd / 1_000_000,
+      calls: run.modelCalls,
+      inputTokens: run.inputTokens,
+      outputTokens: run.outputTokens,
+      cacheReadTokens: run.cacheReadTokens,
+    },
     nextSteps: [],
   };
   const uncovered = criteria.filter((c) => !c.covered);
@@ -131,6 +147,8 @@ export async function buildStoryReport(runId: string): Promise<StoryReport | nul
     ...(report.questions.some((q) => q.blocking) ? ["Answer the blocking questions on the story, then run it again."] : []),
     ...(report.scopeNotes.length ? ["Confirm the current scope with the story owner — comments changed it after the criteria were written."] : []),
     ...(uncovered.length ? [`Close ${uncovered.length} uncovered criterion/criteria before sign-off.`] : []),
+    ...(report.quality?.blocking ? [`Fix ${report.quality.blocking} blocking quality finding(s) before merging.`] : []),
+    ...(report.quality?.warnings ? [`Review ${report.quality.warnings} quality warning(s) in the pull request.`] : []),
     ...(report.publishReady
       ? [
           `Approve the Xray proposal to create ${report.newTests.length} test(s) linked to ${report.story.key}.`,
@@ -190,6 +208,21 @@ export function reportMarkdown(r: StoryReport): string {
     ...(r.files.length ? r.files.map((f) => `- \`${f.path}\` — ${f.kind}${f.reused ? " (reused)" : `, ${f.lines} lines`}`) : ["No files."]),
     ...(r.revisions ? [``, `The verifier sent the first draft back ${r.revisions} time(s) before it passed or stopped.`] : []),
     ...(r.defects.length ? [``, `**Open defects in the generated code**`, ...r.defects.map((d) => `- [${d.severity}] ${d.path}: ${d.issue}`)] : []),
+    ``,
+    `## Quality gate`,
+    ``,
+    ...(r.quality
+      ? [
+          r.quality.summary,
+          ...r.quality.findings.map((f) => `- ${f.fixed ? "Fixed" : f.severity === "block" ? "**Blocking**" : "Warning"}: ${f.title} — \`${f.path}:${f.line}\` ${pad(f.text)}`),
+        ]
+      : ["Not run for this story."]),
+    ``,
+    `## Cost`,
+    ``,
+    r.cost.calls
+      ? `${r.cost.calls} model call(s), ${(r.cost.inputTokens + r.cost.outputTokens).toLocaleString("en")} tokens (${r.cost.cacheReadTokens.toLocaleString("en")} read from cache): $${r.cost.usd.toFixed(4)}.`
+      : "No model calls: the agents ran on their simulators.",
     ...(r.questions.length ? [``, `## Open questions`, ``, ...r.questions.map((q) => `- ${q.blocking ? "**Blocking:** " : ""}${q.question}`)] : []),
     ...(r.risks.length ? [``, `## Risks`, ``, ...r.risks.map((x) => `- ${x.risk} — ${x.mitigation}`)] : []),
     ``,
@@ -208,6 +241,7 @@ export function reportAsComment(r: StoryReport): string {
     `Autopilot test report for ${r.story.key} — ${r.verdict}${r.publishReady ? ", ready to publish" : ""}.`,
     `Strategy: ${r.approach}`,
     `Coverage: ${covered}/${r.criteria.length} acceptance criteria covered; ${r.newTests.length} new Xray test(s) proposed, ${r.existingTests.length} existing test(s) reused.`,
+    ...(r.quality ? [`Quality gate: ${r.quality.summary}`] : []),
     r.criteria
       .map((c, i) => `${i + 1}. ${c.priority} ${c.level} (${c.techniques.join(", ")}) — ${c.criterion.slice(0, 120)}${c.covered ? "" : " — NOT COVERED"}`)
       .join("\n"),

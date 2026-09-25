@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Run" ADD COLUMN     "costMicroUsd" INTEGER NOT NULL DEFAULT 0;

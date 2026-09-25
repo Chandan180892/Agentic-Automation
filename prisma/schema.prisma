@@ -164,6 +164,8 @@ model Run {
   outputTokens     Int @default(0)
   cacheReadTokens  Int @default(0)
   cacheWriteTokens Int @default(0)
+  /// Model spend for this run in millionths of a dollar, priced per model at call time.
+  costMicroUsd     Int @default(0)
   mode        String    @default("single") // single | batch
   status      String    @default("queued") // queued | running | succeeded | failed | needs_review | blocked
   inputJson   String    @default("{}")

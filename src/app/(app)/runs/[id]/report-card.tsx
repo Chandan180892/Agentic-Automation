@@ -12,6 +12,14 @@ export function ReportCard({ runId, report }: { runId: string; report: StoryRepo
         <Pill tone={covered === report.criteria.length && report.criteria.length ? "pass" : "heal"} dot={false}>
           {covered} / {report.criteria.length} criteria covered
         </Pill>
+        {report.quality && (
+          <Pill tone={report.quality.blocking ? "fail" : report.quality.warnings ? "heal" : "pass"} dot={false}>
+            quality: {report.quality.fixed} fixed · {report.quality.blocking} blocking · {report.quality.warnings} warn
+          </Pill>
+        )}
+        <span className="font-mono text-[11px] text-muted" title={`${report.cost.calls} model call(s)`}>
+          {report.cost.calls ? `$${report.cost.usd.toFixed(3)} · ${report.cost.calls} calls` : "simulated · $0"}
+        </span>
         <a href={`/api/runs/${runId}/report`} className="text-[12px] font-semibold text-accent hover:underline">
           Download report (.md)
         </a>
@@ -73,6 +81,24 @@ export function ReportCard({ runId, report }: { runId: string; report: StoryRepo
             </tbody>
           </table>
         </div>
+        {report.quality && report.quality.findings.length > 0 && (
+          <div>
+            <div className="text-[11.5px] font-semibold text-muted">Quality gate · {report.quality.summary}</div>
+            <ul className="mt-1 grid gap-1">
+              {report.quality.findings.slice(0, 15).map((f, i) => (
+                <li key={i} className="flex flex-wrap items-baseline gap-2 text-[12px] leading-[1.5]">
+                  <Pill tone={f.fixed ? "pass" : f.severity === "block" ? "fail" : "heal"} dot={false}>
+                    {f.fixed ? "fixed" : f.severity === "block" ? "blocking" : "warn"}
+                  </Pill>
+                  <span>{f.title}</span>
+                  <span className="font-mono text-[11px] text-muted">
+                    {f.path}:{f.line}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {report.risks.length > 0 && (
           <div>
             <div className="text-[11.5px] font-semibold text-muted">Risks</div>

@@ -58,6 +58,40 @@ Every stage inherits three house rules:
 Outputs come back through a forced tool call, so a result either matches the sub-agent's schema
 or is rejected before it reaches your database.
 
+### Right first time, at low cost
+
+**An automation rulebook.** `src/lib/agents/rulebook.ts` lists what most often makes API, UI and
+end-to-end suites flaky, slow or blind: fixed sleeps, one-shot visibility checks, styling-class
+selectors, element handles, forced clicks, `test.only`/`skip`, order-dependent suites, retries
+that hide failures, tests without assertions or with assertions that cannot fail, placeholders,
+status-only API checks, secrets and hosts in code, shared fixed test data, locale and clock
+dependence, and debug logging, plus four design rules (lowest test level, arrange through the
+API, one behaviour per test, cover rejections and limits). Each rule states the failure it
+prevents and cites its source: the Playwright docs, Google's flaky-test research, Fowler's
+non-determinism and test-pyramid articles, the FSE 2014 flaky-test study, and OWASP.
+
+**A free quality gate.** spec-author writes to the rulebook, which sits in its cached system
+prompt. Every draft then goes through the gate, which is code and makes no model call. It fixes
+what is certain (sleeps, `.only`, `force: true`, `expect(await x.isVisible())`, `console.log`),
+blocks what is wrong and cannot be guessed (no assertion, `expect(true)`, TODOs, secrets,
+skipped tests), and reports the rest as warnings in the test report. A blocking finding goes
+straight back to spec-author without paying for a verifier call.
+
+**Fewer, cheaper model calls:**
+
+- There is no call where the answer is already known: clarify is skipped when nothing is
+  ambiguous, and asset-resolver when there is no repository to read.
+- Each stage has its own effort: low to read the story and plan assets, medium for the strategy
+  and verification, high to write the specs and for the final review.
+- Set `ANTHROPIC_FAST_MODEL` (for example `claude-haiku-4-5`) to run the light stages on a
+  cheaper model.
+- Stable system prompts are cached.
+- Every run records its calls, tokens and dollar cost at list prices, and the test report shows
+  them.
+
+The same rulebook is bundled for the in-browser app (`npm run build:pages` writes
+`docs/rulebook.js`). Its **Quality rules** page runs the gate on any spec you paste.
+
 ### Nothing is written without approval
 
 A run produces **proposals**, not writes. Approving one in the UI is the only code path in the
@@ -336,6 +370,8 @@ npm run test:pipeline   # all seven sub-agents, including the revision loop
 npm run test:e2e        # the orchestrator against a real database
 npm run test:autopilot  # learning cycles: heals, review, lessons, approval, bugs, run-until-stable
 npm run test:jira       # a live story end to end against a local fake of Jira Cloud and Xray
+npm run test:quality    # every rulebook check flags its bad example, passes its good one, fixes safely
+npm run test:live       # the live model path against a fake Messages API: calls skipped, effort, caching, cost, gate
 npm run test:platform   # job queue, worker, crash recovery, retention, env validation
 npm run test:auth       # session handling across every authenticated page
 npm test                # all of the above except auth

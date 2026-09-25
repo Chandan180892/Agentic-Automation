@@ -7,6 +7,8 @@ import { Card, CardHeader, CardBody, Pill, Sub } from "@/components/ui";
 import { AGENT_LIST } from "@/lib/agents/registry";
 import { SUB_AGENT_LIST } from "@/lib/agents/pipeline-registry";
 import { agentsAreLive } from "@/lib/agents/runtime";
+import { RULES } from "@/lib/agents/rulebook";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Agents" };
 export const dynamic = "force-dynamic";
@@ -155,6 +157,72 @@ export default async function AgentsPage() {
               up to twice — so the pipeline converges instead of stopping at the first objection.
               A blocking question from clarify stops the chain outright rather than letting a guess
               flow downstream.
+            </p>
+          </CardBody>
+        </Card>
+        <Card className="mt-4">
+          <CardHeader title="Automation rulebook">
+            <Sub>
+              Known causes of flaky, slow or blind API, UI and end-to-end suites. spec-author writes to it, and a free
+              quality gate checks every draft: it fixes what it can with certainty and sends blocking problems back
+              without a paid review.
+            </Sub>
+          </CardHeader>
+          <ul className="divide-y divide-line-soft">
+            {RULES.map((r) => (
+              <li key={r.id} className="grid gap-1 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <b className="text-[13px]">{r.title}</b>
+                  <Pill tone="idle" dot={false}>{r.layer === "any" ? "all layers" : r.layer}</Pill>
+                  <Pill tone={r.severity === "block" ? "fail" : "heal"} dot={false}>{r.severity === "block" ? "blocking" : "warning"}</Pill>
+                  {r.check ? (
+                    <Pill tone="pass" dot={false}>{r.check.kind === "line" && r.check.fix ? "checked · auto-fix" : "checked"}</Pill>
+                  ) : (
+                    <Pill tone="idle" dot={false}>guidance</Pill>
+                  )}
+                </div>
+                <p className="text-[12px] leading-[1.55] text-ink-2">{r.why}</p>
+                <p className="text-[12px] leading-[1.55]">
+                  <span className="text-muted">Instead:</span> {r.instead}
+                </p>
+                <p className="text-[11px] text-muted">
+                  {r.sources.map((src, i) => (
+                    <span key={src.name}>
+                      {i > 0 && " · "}
+                      {src.url ? (
+                        <a href={src.url} target="_blank" rel="noreferrer" className="hover:underline">
+                          {src.name}
+                        </a>
+                      ) : (
+                        src.name
+                      )}
+                    </span>
+                  ))}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card className="mt-4">
+          <CardHeader title="Cost controls" />
+          <CardBody className="grid gap-1.5 text-[12.5px] leading-[1.6] text-ink-2">
+            <p>
+              Main model <code className="font-mono text-[11.5px]">{env().ANTHROPIC_MODEL}</code>
+              {env().ANTHROPIC_FAST_MODEL ? (
+                <>
+                  ; light stages on <code className="font-mono text-[11.5px]">{env().ANTHROPIC_FAST_MODEL}</code>
+                </>
+              ) : (
+                "; every stage on it, at a different effort"
+              )}
+              . Effort per stage:{" "}
+              {SUB_AGENT_LIST.map((a) => `${a.id} ${a.effort}`).join(" · ")}.
+            </p>
+            <p>
+              No model call where the answer is already known: clarify when nothing is ambiguous, asset-resolver when
+              there is no repository to read, the verifier when the quality gate already found a blocking problem.
+              System prompts (with this rulebook) are cached. Every run records its calls, tokens and dollar cost.
             </p>
           </CardBody>
         </Card>
